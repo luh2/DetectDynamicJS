@@ -1,0 +1,9 @@
+<p>This extension compares JavaScript files with each other to detect dynamically generated content. This occasionally contains not only code but also <em>data</em> with user or session information. User/session information can then be checked for potential leakage. This extension is supposed to help hunting for exploitable situations.</p>
+<br>
+<p>To trigger the extension, simply launch a passive scan of your JavaScript files. All JavaScript files should be loaded both with authenticated user privileges and without.</p>
+<p>If the same script is found to contain differing content, the extension will report an issue in the Target tab. </p>
+<br>
+ 
+Requires Jython 2.7 and difflib.
+
+<p>More information about Dynamically Generated JavaScript and hunting for related bugs can be found on the project page: https://github.com/luh2/DetectDynamicJS</p>
