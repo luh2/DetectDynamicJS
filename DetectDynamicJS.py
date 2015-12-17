@@ -26,8 +26,8 @@ from burp import IScanIssue
 from array import array
 import difflib
 
-VERSION = '0.1'
-VERSIONNAME = 'Pumpkin'
+VERSION = '0.2'
+VERSIONNAME = 'Vincent Vega'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -46,7 +46,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # store all js files
         self.js_files = {} # url:contents
         
-        print "Loaded Detect Dynamic JS v"+VERSION+"("+VERSIONNAME+")!"
+        print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
         return
 
 
@@ -111,8 +111,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
             issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
             issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-            nOffsets = self.calculateHighlights(nBody, oBody, [oBodyOffset, nBodyOffset])
-            oOffsets = self.calculateHighlights(oBody, nBody, [nBodyOffset, oBodyOffset])
+            oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
+            nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
             result = ScanIssue(self._requestResponse.getHttpService(),
                                self._helpers.analyzeRequest(self._requestResponse).getUrl(),
                                issuename, issuelevel, issuedetail, issuebackground, issueremediation,
@@ -123,28 +123,24 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """find the exact points for highlighting the responses"""
         s = difflib.SequenceMatcher(None, oldBody, newBody)
         matching_blocks = s.get_matching_blocks()
-        long_matching_blocks = [m for m in matching_blocks if m.size > 2]
         offsets = []
         poszero = 0
         posone = 0
-        odd = True
-        for m in long_matching_blocks:
+        first = True
+        # can create slightly weird marks because of being as
+        # exact as one character. But I'd rather keep precision
+        for m in matching_blocks:
             offset = array('i', [0, 0])
-            if odd:
-                poszero = m.b + m.size + poszero +bodyOffset[0]
-                odd = False
+            if first:
+                poszero = m.a + m.size + bodyOffset
+                first = False
             else:
-                offset[0] = poszero
-                posone = m.b + bodyOffset[1]
-                offset[1] = posone
-                poszero = m.b + m.size
-                offsets.append(offset)
-                odd = True
-        if posone-bodyOffset[1] < len(newBody):
-            offset = array('i', [0, 0])
-            offset[0] = poszero + bodyOffset[0]
-            offset[1] = len(newBody) + bodyOffset[1]
-            offsets.append(offset)
+                posone = m.a + bodyOffset
+                if posone != poszero:
+                    offset[0] = poszero
+                    offset[1] = posone
+                    offsets.append(offset)
+                poszero = m.a + m.size + bodyOffset
         return offsets
 
 
