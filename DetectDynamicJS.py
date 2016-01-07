@@ -26,8 +26,13 @@ from burp import IScanIssue
 from array import array
 import difflib
 
+<<<<<<< HEAD
 VERSION = '0.3'
 VERSIONNAME = 'Mia Wallace'
+=======
+VERSION = '0.2'
+VERSIONNAME = 'Vincent Vega'
+>>>>>>> fc388f65a0283a21f34b5d707faf514b76d29eeb
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -130,7 +135,10 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
             issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
             issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
+<<<<<<< HEAD
            
+=======
+>>>>>>> fc388f65a0283a21f34b5d707faf514b76d29eeb
             oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
             nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
             result = ScanIssue(self._requestResponse.getHttpService(),

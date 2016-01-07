@@ -1,5 +1,6 @@
 # Changelog
 
+<<<<<<< HEAD
 <a name="0.3"></a>
 ## v0.3 (Mia Wallace)
 	- Checking also for scripts that don't have a file ending
@@ -10,6 +11,15 @@
 <a name="0.2"></a>
 ## v0.2 (Vincent Vega)
 	- Fix Calculation Error in calculateHighlights
+=======
+<a name="0.2"></a>
+## v0.2
+
+- Fix Calculation Error in calculateHighlights
+
+<a name="0.1"></a>
+## v0.1
+>>>>>>> fc388f65a0283a21f34b5d707faf514b76d29eeb
 
 
 <a name="0.1"></a>
