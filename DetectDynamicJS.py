@@ -26,8 +26,8 @@ from burp import IScanIssue
 from array import array
 import difflib
 
-VERSION = '0.1'
-VERSIONNAME = 'Pumpkin'
+VERSION = '0.3'
+VERSIONNAME = 'Mia Wallace'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -46,21 +46,34 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # store all js files
         self.js_files = {} # url:contents
         
-        print "Loaded Detect Dynamic JS v"+VERSION+"("+VERSIONNAME+")!"
+        print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
         return
 
 
     def extensionUnloaded(self):
         print "Unloaded"
         return
-
     # Burp Scanner invokes this method for each base request/response that is
     # passively scanned
     def doPassiveScan(self, baseRequestResponse):
-        
+        # WARNING: NOT REALLY A PASSIVE SCAN!
+        # doPassiveScan issues always one request per request scanned
         self._requestResponse = baseRequestResponse
+
         scan_issues = []
-        issue = self.addToCollection()
+        issue = self.addToCollection(self._requestResponse)
+        if issue:
+            scan_issues.append(issue)
+
+        request = self._requestResponse.getRequest()
+        requestInfo = self._helpers.analyzeRequest(request)
+        bodyOffset = requestInfo.getBodyOffset()
+        headers = request.tostring()[:bodyOffset].split('\r\n')
+        body = request.tostring()[bodyOffset:]
+        modified_headers = "\n".join(header for header in headers if "Cookie" not in header)
+        newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+body))
+        respInfo = self._helpers.analyzeRequest(newResponse)
+        issue = self.addToCollection(newResponse)
         if issue:
             scan_issues.append(issue)
 
@@ -71,39 +84,45 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return None
 
-    def addToCollection(self):
+    def addToCollection(self, baseRequestResponse):
         self._helpers = self._callbacks.getHelpers()
-        url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
+        url = self._helpers.analyzeRequest(baseRequestResponse).getUrl()
         url = str(url).split("?")[0]
-        response = self._requestResponse.getResponse()
+        response = baseRequestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
-        statusCode = headers[0].split()[1].strip()
+        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
+        if len(contentLengthL) >= 1:
+            contentLength = int(contentLengthL[0].split(':')[1].strip())
+        else:
+            contentLength = 0
         result = None
-        if url[-3:] == ".js" and statusCode == "200":
-            if url in self.js_files:
-                result = self.compareResponses(self._requestResponse, self.js_files[url])
+        if contentLength > 0:
+            contentType = ""
+            contentTypeL = [x for x in headers if "content-type:" in x.lower()]
+            if len(contentTypeL) == 1:
+                contentType = contentTypeL[0].lower()
+            statusCode = headers[0].split()[1].strip()
+            if url not in self.js_files:
+                if (url[-3:] == ".js" or "javascript" in contentType or "ecmascript" in contentType or "jscript" in contentType or "application/json" in contentType) and (url[-5:] != ".json") and (int(statusCode) < 300 or int(statusCode) > 399):
+                    self.js_files[url] = baseRequestResponse
             else:
-                self.js_files[url] = self._requestResponse
+                result = self.compareResponses(baseRequestResponse, self.js_files[url])
         return result
 
             
     def compareResponses(self, newResponse, oldResponse):
         """Compare two responses in respect to their body contents"""
-        url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
-        url = str(url).split("?")[0]
-
         nResponse = newResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
-        
+
         oResponse = oldResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
         oBody = oResponse.tostring()[oBodyOffset:]            
-
         result = None
         if str(nBody) != str(oBody):
             issuename = "Dynamic JavaScript Code Detected"
@@ -111,46 +130,45 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
             issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
             issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-            nOffsets = self.calculateHighlights(nBody, oBody, [oBodyOffset, nBodyOffset])
-            oOffsets = self.calculateHighlights(oBody, nBody, [nBodyOffset, oBodyOffset])
+           
+            oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
+            nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
             result = ScanIssue(self._requestResponse.getHttpService(),
                                self._helpers.analyzeRequest(self._requestResponse).getUrl(),
                                issuename, issuelevel, issuedetail, issuebackground, issueremediation,
                                [self._callbacks.applyMarkers(oldResponse, None, oOffsets), self._callbacks.applyMarkers(newResponse, None, nOffsets)])
+        else:
+            url = self._helpers.analyzeRequest(newResponse).getUrl()
+            url = str(url)
+            print "File "+url+" is the same with and without cookies"
+            
         return result
+
 
     def calculateHighlights(self, newBody, oldBody, bodyOffset):
         """find the exact points for highlighting the responses"""
         s = difflib.SequenceMatcher(None, oldBody, newBody)
         matching_blocks = s.get_matching_blocks()
-        long_matching_blocks = [m for m in matching_blocks if m.size > 2]
         offsets = []
         poszero = 0
         posone = 0
-        odd = True
-        for m in long_matching_blocks:
+        first = True
+        # can create slightly weird marks because of being as
+        # exact as one character. But I'd rather keep precision
+        for m in matching_blocks:
             offset = array('i', [0, 0])
-            if odd:
-                poszero = m.b + m.size + poszero +bodyOffset[0]
-                odd = False
+            if first:
+                poszero = m.a + m.size + bodyOffset
+                first = False
             else:
-                offset[0] = poszero
-                posone = m.b + bodyOffset[1]
-                offset[1] = posone
-                poszero = m.b + m.size
-                offsets.append(offset)
-                odd = True
-        if posone-bodyOffset[1] < len(newBody):
-            offset = array('i', [0, 0])
-            offset[0] = poszero + bodyOffset[0]
-            offset[1] = len(newBody) + bodyOffset[1]
-            offsets.append(offset)
+                posone = m.a + bodyOffset
+                if posone != poszero:
+                    offset[0] = poszero
+                    offset[1] = posone
+                    offsets.append(offset)
+                poszero = m.a + m.size + bodyOffset
         return offsets
 
-
-    # Just so the scanner doesn't return a "method not implemented error"
-    def doActiveScan(self):
-        return None
 
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         existingIssueResponses = []
@@ -180,6 +198,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return 0
 
+        
 class ScanIssue(IScanIssue):
     def __init__(self, httpservice, url, name, severity, detailmsg, background, remediation, requests):
         self._url = url

@@ -1,6 +1,17 @@
 # Changelog
 
-<a name="0.1"></a>
-## v0.1
+<a name="0.3"></a>
+## v0.3 (Mia Wallace)
+	- Checking also for scripts that don't have a file ending
+	- Ignore Responses with Content-Length of 0
+	- Also scan application/json, which generates more false positives, but catches mis-labelled JSONP
+	- automatically request the non-authentication version of script
 
-- Initial Version
+<a name="0.2"></a>
+## v0.2 (Vincent Vega)
+	- Fix Calculation Error in calculateHighlights
+
+
+<a name="0.1"></a>
+## v0.1 (Pumpkin)
+	- Initial Version

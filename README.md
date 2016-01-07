@@ -4,6 +4,9 @@ The DetectDynamicJS Burp Extension provides an additional passive scanner that t
 
 Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. The whole process of how to exploit this behavior is detailed in the paper [The Unexpected Dangers of Dynamic JavaScript](https://www.kittenpics.org/wp-content/uploads/2015/05/script-leakage.pdf) by Sebastian Lekies, Ben Stock, Martin Wentzel and Martin Johns. The paper inspired this extension. I hope this extension will ease the hunt for vulnerabilities described in the aforementioned paper. Release statement with additional information about the extension can be found on the official website [http://www.scip.ch/en/?labs.20151215](http://www.scip.ch/en/?labs.20151215).
 
+## Note on Release 0.3 (Mia Wallace)
+We decided to improve the usability by not requiring the user to request both the non-authenticated version and the authenticated version of the script. Instead, when calling a passive scan of the authenticated version of the script, the extension requests the non-authenticated version by itself. This has proven to be more comfortable. It should be noted that the extension is still a passive scanner module, despite the fact that it issues a request per scanned file.
+
 ## Requirements
 This plugin requires Jython 2.7 and Python difflib, which is included in most Python environments. See heading [Python Environment](http://portswigger.net/burp/help/extender.html) in the official documentation of Burp. 
 
