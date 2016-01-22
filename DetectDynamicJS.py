@@ -17,22 +17,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from burp import IBurpExtender
-from burp import IScannerCheck
-from burp import IExtensionStateListener
-from burp import IExtensionHelpers
-from burp import IHttpRequestResponse
-from burp import IScanIssue
-from array import array
-import difflib
+try:
+    from burp import IBurpExtender
+    from burp import IScannerCheck
+    from burp import IExtensionStateListener
+    from burp import IExtensionHelpers
+    from burp import IHttpRequestResponse
+    from burp import IScanIssue
+    from array import array
+    import difflib
+except ImportError:
+    print "Failed to load dependencies. This issue maybe caused by using an unstable Jython version."
 
-<<<<<<< HEAD
-VERSION = '0.3'
-VERSIONNAME = 'Mia Wallace'
-=======
-VERSION = '0.2'
-VERSIONNAME = 'Vincent Vega'
->>>>>>> fc388f65a0283a21f34b5d707faf514b76d29eeb
+VERSION = '0.4'
+VERSIONNAME = 'Butch Coolidge'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -47,9 +45,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._callbacks.registerScannerCheck(self)
         self._callbacks.registerExtensionStateListener(self)
         self._helpers = callbacks.getHelpers()
-
-        # store all js files
-        self.js_files = {} # url:contents
         
         print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
         return
@@ -58,17 +53,10 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
     def extensionUnloaded(self):
         print "Unloaded"
         return
-    # Burp Scanner invokes this method for each base request/response that is
-    # passively scanned
-    def doPassiveScan(self, baseRequestResponse):
-        # WARNING: NOT REALLY A PASSIVE SCAN!
-        # doPassiveScan issues always one request per request scanned
-        self._requestResponse = baseRequestResponse
 
+    def doActiveScan(self, baseRequestResponse, insertionPoint):
+        self._requestResponse = baseRequestResponse
         scan_issues = []
-        issue = self.addToCollection(self._requestResponse)
-        if issue:
-            scan_issues.append(issue)
 
         request = self._requestResponse.getRequest()
         requestInfo = self._helpers.analyzeRequest(request)
@@ -76,58 +64,84 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         headers = request.tostring()[:bodyOffset].split('\r\n')
         body = request.tostring()[bodyOffset:]
         modified_headers = "\n".join(header for header in headers if "Cookie" not in header)
+        print modified_headers
         newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+body))
         respInfo = self._helpers.analyzeRequest(newResponse)
-        issue = self.addToCollection(newResponse)
+
+        issue = self.compareAuthenticatedAndUnauthenticated(self._requestResponse, newResponse)
         if issue:
             scan_issues.append(issue)
 
-        # doPassiveScan needs to return a list of scan issues, if any, and None
-        # otherwise
         if len(scan_issues) > 0:
             return scan_issues
         else:
             return None
 
-    def addToCollection(self, baseRequestResponse):
+    
+    # Burp Scanner invokes this method for each base request/response that is
+    # passively scanned
+    def doPassiveScan(self, baseRequestResponse):
+        # WARNING: NOT REALLY A PASSIVE SCAN!
+        # doPassiveScan issues always one request per request scanned
+        scan_issues = []
+        
+        self._requestResponse = baseRequestResponse
         self._helpers = self._callbacks.getHelpers()
-        url = self._helpers.analyzeRequest(baseRequestResponse).getUrl()
+        
+        url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
         url = str(url).split("?")[0]
-        response = baseRequestResponse.getResponse()
+        
+        response = self._requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
+        mimeType = responseInfo.getStatedMimeType().split(';')[0]
+        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
+        body = response.tostring()[bodyOffset:]
+        first_char = body[0:1]
+        
         contentLengthL = [x for x in headers if "content-length:" in x.lower()]
         if len(contentLengthL) >= 1:
             contentLength = int(contentLengthL[0].split(':')[1].strip())
         else:
             contentLength = 0
-        result = None
+        
         if contentLength > 0:
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
-            statusCode = headers[0].split()[1].strip()
-            if url not in self.js_files:
-                if (url[-3:] == ".js" or "javascript" in contentType or "ecmascript" in contentType or "jscript" in contentType or "application/json" in contentType) and (url[-5:] != ".json") and (int(statusCode) < 300 or int(statusCode) > 399):
-                    self.js_files[url] = baseRequestResponse
-            else:
-                result = self.compareResponses(baseRequestResponse, self.js_files[url])
-        return result
+            statusCode = responseInfo.getStatusCode()
+            # this might need extension
+            if (url[-3:] == ".js" or url[-4:] == ".jsp" or url[-5:] != ".json" or "javascript" in contentType or "ecmascript" in contentType or "jscript" in contentType or "application/json" in contentType or "script" in inferredMimeType or "script" in stateMimeType) and (int(statusCode) < 300 or int(statusCode) > 399) and (first_char != "{"):
+                request = self._requestResponse.getRequest()
+                requestInfo = self._helpers.analyzeRequest(request)
+                requestBodyOffset = requestInfo.getBodyOffset()
+                requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
+                requestBody = request.tostring()[requestBodyOffset:]
+                modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
+                newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+body))
+                issue = self.compareResponses(newResponse, self._requestResponse)
+                if issue:
+                    scan_issues.append(issue)
+        if len(scan_issues) > 0:
+            return scan_issues
+        else:
+            return None
 
-            
+
     def compareResponses(self, newResponse, oldResponse):
         """Compare two responses in respect to their body contents"""
         nResponse = newResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
-
+        
         oResponse = oldResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
-        oBody = oResponse.tostring()[oBodyOffset:]            
+        oBody = oResponse.tostring()[oBodyOffset:]
+        
         result = None
         if str(nBody) != str(oBody):
             issuename = "Dynamic JavaScript Code Detected"
@@ -135,10 +149,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
             issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
             issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-<<<<<<< HEAD
            
-=======
->>>>>>> fc388f65a0283a21f34b5d707faf514b76d29eeb
             oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
             nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
             result = ScanIssue(self._requestResponse.getHttpService(),
@@ -166,15 +177,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         for m in matching_blocks:
             offset = array('i', [0, 0])
             if first:
-                poszero = m.a + m.size + bodyOffset
+                poszero = m.a + m.size 
                 first = False
             else:
-                posone = m.a + bodyOffset
+                posone = m.a
                 if posone != poszero:
-                    offset[0] = poszero
-                    offset[1] = posone
+                    offset[0] = poszero + bodyOffset
+                    offset[1] = posone + bodyOffset
                     offsets.append(offset)
-                poszero = m.a + m.size + bodyOffset
+                poszero = m.a + m.size 
         return offsets
 
 
@@ -206,7 +217,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return 0
 
-        
 class ScanIssue(IScanIssue):
     def __init__(self, httpservice, url, name, severity, detailmsg, background, remediation, requests):
         self._url = url
