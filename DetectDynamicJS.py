@@ -55,27 +55,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         return
 
     def doActiveScan(self, baseRequestResponse, insertionPoint):
-        self._requestResponse = baseRequestResponse
-        scan_issues = []
-
-        request = self._requestResponse.getRequest()
-        requestInfo = self._helpers.analyzeRequest(request)
-        bodyOffset = requestInfo.getBodyOffset()
-        headers = request.tostring()[:bodyOffset].split('\r\n')
-        body = request.tostring()[bodyOffset:]
-        modified_headers = "\n".join(header for header in headers if "Cookie" not in header)
-        print modified_headers
-        newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+body))
-        respInfo = self._helpers.analyzeRequest(newResponse)
-
-        issue = self.compareAuthenticatedAndUnauthenticated(self._requestResponse, newResponse)
-        if issue:
-            scan_issues.append(issue)
-
-        if len(scan_issues) > 0:
-            return scan_issues
-        else:
-            return None
+            return []
 
     
     # Burp Scanner invokes this method for each base request/response that is
