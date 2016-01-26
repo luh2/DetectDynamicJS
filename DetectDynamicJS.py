@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Burp DetectDynamicJS Extension
-# Copyright (c) 2015, Veit Hailperin (scip AG)
+# Copyright (c) 2015, 2016 Veit Hailperin (scip AG)
 
 # This extension is supposed to help detecting dynamic js files, to look for state-dependency.
 
@@ -29,8 +29,8 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue maybe caused by using an unstable Jython version."
 
-VERSION = '0.4'
-VERSIONNAME = 'Butch Coolidge'
+VERSION = '0.5'
+VERSIONNAME = 'Jules Winnfield'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -55,8 +55,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         return
 
     def doActiveScan(self, baseRequestResponse, insertionPoint):
-            return []
-
+        return []
     
     # Burp Scanner invokes this method for each base request/response that is
     # passively scanned
@@ -64,13 +63,21 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # WARNING: NOT REALLY A PASSIVE SCAN!
         # doPassiveScan issues always one request per request scanned
         scan_issues = []
-        
+        possibleFileEndings = ["js", "jsp", "json"]
+        possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self._requestResponse = baseRequestResponse
         self._helpers = self._callbacks.getHelpers()
         
         url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
+        fileEnding = ".totallynotit"
+        urlSplit = str(url).split("/")
+        if len(urlSplit) != 0:
+            fileName = urlSplit[len(urlSplit)-1]
+            fileNameSplit = fileName.split(".")
+            fileEnding = fileNameSplit[len(fileNameSplit)-1]
+            fileEnding = fileEnding.split("?")[0]
+            
         url = str(url).split("?")[0]
-        
         response = self._requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
@@ -93,7 +100,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                 contentType = contentTypeL[0].lower()
             statusCode = responseInfo.getStatusCode()
             # this might need extension
-            if (url[-3:] == ".js" or url[-4:] == ".jsp" or url[-5:] != ".json" or "javascript" in contentType or "ecmascript" in contentType or "jscript" in contentType or "application/json" in contentType or "script" in inferredMimeType or "script" in stateMimeType) and (int(statusCode) < 300 or int(statusCode) > 399) and (first_char != "{"):
+            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and (int(statusCode) < 300 or int(statusCode) > 399) and first_char != "{":
                 request = self._requestResponse.getRequest()
                 requestInfo = self._helpers.analyzeRequest(request)
                 requestBodyOffset = requestInfo.getBodyOffset()
@@ -104,6 +111,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                 issue = self.compareResponses(newResponse, self._requestResponse)
                 if issue:
                     scan_issues.append(issue)
+            
         if len(scan_issues) > 0:
             return scan_issues
         else:

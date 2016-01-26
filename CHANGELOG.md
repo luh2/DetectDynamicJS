@@ -1,5 +1,9 @@
 # Changelog
 
+<a name="0.5"></a>
+## v0.5 (Jules Winnfield)
+	- Bug fix
+
 <a name="0.4"></a>
 ## v0.4 (Butch Coolidge)
 	- False positive reduction
