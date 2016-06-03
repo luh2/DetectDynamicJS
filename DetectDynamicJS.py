@@ -25,12 +25,13 @@ try:
     from burp import IHttpRequestResponse
     from burp import IScanIssue
     from array import array
+    from time import sleep
     import difflib
 except ImportError:
     print "Failed to load dependencies. This issue maybe caused by using an unstable Jython version."
 
-VERSION = '0.5'
-VERSIONNAME = 'Jules Winnfield'
+VERSION = '0.6'
+VERSIONNAME = 'Marsellus Wallace'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -57,11 +58,12 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
     def doActiveScan(self, baseRequestResponse, insertionPoint):
         return []
     
-    # Burp Scanner invokes this method for each base request/response that is
-    # passively scanned
     def doPassiveScan(self, baseRequestResponse):
         # WARNING: NOT REALLY A PASSIVE SCAN!
-        # doPassiveScan issues always one request per request scanned
+        # doPassiveScan issues always at least one, if not two requests,
+        # per request scanned
+        # This is, because the insertionPoint idea doesn't work well
+        # for this test. 
         scan_issues = []
         possibleFileEndings = ["js", "jsp", "json"]
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
@@ -107,16 +109,55 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                 requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
                 requestBody = request.tostring()[requestBodyOffset:]
                 modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
-                newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+body))
+                newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
                 issue = self.compareResponses(newResponse, self._requestResponse)
                 if issue:
+                    # If response is script, check if script is dynamic
+                    if self.isScript(newResponse):
+                        # sleep, in case this is a generically time stamped script
+                        sleep(1)
+                        secondResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                        isDynamic = self.compareResponses(secondResponse, newResponse)
+                        if isDynamic:
+                            issue = self.reportDynamicOnly(newResponse, self._requestResponse, secondResponse)
                     scan_issues.append(issue)
-            
         if len(scan_issues) > 0:
             return scan_issues
         else:
             return None
-
+    
+ 
+    def isScript(self, requestResponse):
+        """Determine if the response is a script"""
+        possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
+        self._helpers = self._callbacks.getHelpers()
+        
+        url = self._helpers.analyzeRequest(requestResponse).getUrl()
+        url = str(url).split("?")[0]
+        
+        response = requestResponse.getResponse()
+        responseInfo = self._helpers.analyzeResponse(response)
+        mimeType = responseInfo.getStatedMimeType().split(';')[0]
+        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
+        bodyOffset = responseInfo.getBodyOffset()
+        headers = response.tostring()[:bodyOffset].split('\r\n')
+        
+        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
+        if len(contentLengthL) >= 1:
+            contentLength = int(contentLengthL[0].split(':')[1].strip())
+        else:
+            contentLength = 0
+        
+        if contentLength > 0:
+            contentType = ""
+            contentTypeL = [x for x in headers if "content-type:" in x.lower()]
+            if len(contentTypeL) == 1:
+                contentType = contentTypeL[0].lower()
+            statusCode = responseInfo.getStatusCode()
+            if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and (int(statusCode) < 300 or int(statusCode) > 399):
+                return True
+        return False
+        
 
     def compareResponses(self, newResponse, oldResponse):
         """Compare two responses in respect to their body contents"""
@@ -133,25 +174,58 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         result = None
         if str(nBody) != str(oBody):
             issuename = "Dynamic JavaScript Code Detected"
-            issuelevel = "Information"
+            issuelevel = "Medium"
             issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
             issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
             issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-           
+            issueconfidence = "Firm"
             oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
             nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
             result = ScanIssue(self._requestResponse.getHttpService(),
                                self._helpers.analyzeRequest(self._requestResponse).getUrl(),
-                               issuename, issuelevel, issuedetail, issuebackground, issueremediation,
+                               issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
                                [self._callbacks.applyMarkers(oldResponse, None, oOffsets), self._callbacks.applyMarkers(newResponse, None, nOffsets)])
         else:
             url = self._helpers.analyzeRequest(newResponse).getUrl()
             url = str(url)
-            print "File "+url+" is the same with and without cookies"
             
         return result
 
+    def reportDynamicOnly(self, firstResponse, originalResponse, secondResponse):
+        """Report Situation as Dynamic Only"""
+        issuename = "Dynamic JavaScript Code Detected"
+        issuelevel = "Information"
+        issueconfidence = "Certain"
+        issuedetail = "These files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
+        issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
+        issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
 
+        nResponse = firstResponse.getResponse()
+        nResponseInfo = self._helpers.analyzeResponse(nResponse)
+        nBodyOffset = nResponseInfo.getBodyOffset()
+        nBody = nResponse.tostring()[nBodyOffset:]
+        
+        oResponse = originalResponse.getResponse()
+        oResponseInfo = self._helpers.analyzeResponse(oResponse)
+        oBodyOffset = oResponseInfo.getBodyOffset()
+        oBody = oResponse.tostring()[oBodyOffset:]
+
+        sResponse = secondResponse.getResponse()
+        sResponseInfo = self._helpers.analyzeResponse(sResponse)
+        sBodyOffset = sResponseInfo.getBodyOffset()
+        sBody = sResponse.tostring()[sBodyOffset:]
+        
+        oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
+        nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
+        sOffsets = self.calculateHighlights(oBody, sBody, sBodyOffset)
+        result = ScanIssue(self._requestResponse.getHttpService(),
+                           self._helpers.analyzeRequest(self._requestResponse).getUrl(),
+                           issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
+                           [self._callbacks.applyMarkers(originalResponse, None, oOffsets),
+                            self._callbacks.applyMarkers(firstResponse, None, nOffsets),
+                            self._callbacks.applyMarkers(secondResponse, None, sOffsets)])
+        return result
+        
     def calculateHighlights(self, newBody, oldBody, bodyOffset):
         """find the exact points for highlighting the responses"""
         s = difflib.SequenceMatcher(None, oldBody, newBody)
@@ -186,14 +260,14 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             nResponseInfo = self._helpers.analyzeResponse(nResponse)
             nBodyOffset = nResponseInfo.getBodyOffset()
             nBody = nResponse.tostring()[nBodyOffset:]
-            newIssueResponses.append(nBody)
+#            newIssueResponses.append(nBody)
             
         for oldResponse in existingIssue.getHttpMessages():
             oResponse = oldResponse.getResponse()
             oResponseInfo = self._helpers.analyzeResponse(oResponse)
             oBodyOffset = oResponseInfo.getBodyOffset()
             oBody = oResponse.tostring()[oBodyOffset:]
-            existingIssueResponses.append(oBody)
+#            existingIssueResponses.append(oBody)
 
         for newIssueResp in newIssueResponses:
             for existingIssueResp in existingIssueResponses:
@@ -206,7 +280,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return 0
 
 class ScanIssue(IScanIssue):
-    def __init__(self, httpservice, url, name, severity, detailmsg, background, remediation, requests):
+    def __init__(self, httpservice, url, name, severity, detailmsg, background, remediation, confidence, requests):
         self._url = url
         self._httpservice = httpservice
         self._name = name
@@ -214,6 +288,7 @@ class ScanIssue(IScanIssue):
         self._detailmsg = detailmsg
         self._issuebackground = background
         self._issueremediation = remediation
+        self._confidence = confidence
         self._httpmsgs = requests
         
     def getUrl(self):
@@ -247,4 +322,4 @@ class ScanIssue(IScanIssue):
         return self._severity
 
     def getConfidence(self):
-        return "Certain"
+        return self._confidence

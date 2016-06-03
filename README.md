@@ -2,7 +2,10 @@
 
 The DetectDynamicJS Burp Extension provides an additional passive scanner that tries to find differing content in JavaScript files and aid in finding user/session data.
 
-Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. The whole process of how to exploit this behavior is detailed in the paper [The Unexpected Dangers of Dynamic JavaScript](https://www.kittenpics.org/wp-content/uploads/2015/05/script-leakage.pdf) by Sebastian Lekies, Ben Stock, Martin Wentzel and Martin Johns. The paper inspired this extension. I hope this extension will ease the hunt for vulnerabilities described in the aforementioned paper. Release statement with additional information about the extension can be found on the official website [http://www.scip.ch/en/?labs.20151215](http://www.scip.ch/en/?labs.20151215).
+Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. For more information about the reasons, the ways to find or how to exploit this issue, see [Cross-Site Script Inclusion](http://www.scip.ch/en/?labs.20160414).
+
+## Note on Release 0.6 (Marsellus Wallace)
+If necessary, the extension will now issue two requests to reduce false positives. Also, depending on how the issue was discovered, it might be rated as Information and not as Medium.
 
 ## Note on Release 0.3 (Mia Wallace)
 We decided to improve the usability by not requiring the user to request both the non-authenticated version and the authenticated version of the script. Instead, when calling a passive scan of the authenticated version of the script, the extension requests the non-authenticated version by itself. This has proven to be more comfortable. It should be noted that the extension is still a passive scanner module, despite the fact that it issues a request per scanned file.
@@ -16,12 +19,13 @@ Some default installations of Python might not install difflib. In that case you
 ![Screenshot of Issue](https://github.com/luh2/DetectDynamicJS/blob/master/screenshots/generic.png)
 ![Marked Difference in compared JS](https://github.com/luh2/DetectDynamicJS/blob/master/screenshots/secret.png)
 
+## Contributions
+If you want to improve the extension, please send me a pull request or open an issue. To ease accepting pull requests, if you send a pull request, please make sure it addresses only one change and not multiple ones at the same time.
+
 ## Various
 The extension has been tested with Kali Linux, Burp version 1.6.32 and newer, Jython installation (not stand-alone) 2.7rc1.
 
 If you test under Windows or use a different Burp version, please share if you experience problems.
-
-If you want to improve the extension, please send me a pull request or leave a comment.
 
 If you identify XSSI because of this extension, feel free to share!
 
