@@ -77,7 +77,14 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         statusCode = responseInfo.getStatusCode()
         if statusCode != 200:
           return
-          
+
+        # Check for authorization
+        reqHeaders = self._helpers.analyzeRequest(self._requestResponse).getHeaders()
+        hfields = [h.split(':')[0] for h in reqHeaders]
+        ifields = ['cookie','authorization']
+        if not any(h for h in ifields if h not in str(hfields).lower()):
+          return
+
         url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
         fileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
