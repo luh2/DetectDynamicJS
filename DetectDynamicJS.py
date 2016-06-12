@@ -76,19 +76,19 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # Scan only if the statusCode is 200
         statusCode = responseInfo.getStatusCode()
         if statusCode != 200:
-          return
+            return None
         
         # Check if the script is world readable
         resHeaders = self._helpers.analyzeResponse(response).getHeaders()
         if any(h for h in resHeaders if "access-control-allow-origin: *" in h.lower()):
-          return
+            return None
 
         # Check for authorization
         reqHeaders = self._helpers.analyzeRequest(self._requestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         ifields = ['cookie','authorization']
         if not any(h for h in ifields if h not in str(hfields).lower()):
-          return
+            return None
 
         url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
         fileEnding = ".totallynotit"
@@ -181,9 +181,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         nResponse = newResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
         
-        # Check if the statusCode is still 200
+        # Check if the statusCode is still 200  - indicates login oracle
         if nResponseInfo.getStatusCode() != 200:
-          return
+            return None
           
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
