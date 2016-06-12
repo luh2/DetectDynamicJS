@@ -106,6 +106,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         headers = response.tostring()[:bodyOffset].split('\r\n')
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
+        ichars = ['{','<']
         
         contentLengthL = [x for x in headers if "content-length:" in x.lower()]
         if len(contentLengthL) >= 1:
@@ -119,7 +120,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
             # this might need extension
-            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char != "{":
+            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
                 request = self._requestResponse.getRequest()
                 requestInfo = self._helpers.analyzeRequest(request)
                 requestBodyOffset = requestInfo.getBodyOffset()
