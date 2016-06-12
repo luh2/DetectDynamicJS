@@ -180,10 +180,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """Compare two responses in respect to their body contents"""
         nResponse = newResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
-        
-        # Check if the statusCode is still 200  - indicates login oracle
-        if nResponseInfo.getStatusCode() != 200:
-            return None
           
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
