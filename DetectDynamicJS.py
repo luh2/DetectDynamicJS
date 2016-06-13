@@ -79,7 +79,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return None
         
         # Check if the script is world readable
-        resHeaders = self._helpers.analyzeResponse(response).getHeaders()
+        resHeaders = responseInfo.getHeaders()
         if any(h for h in resHeaders if "access-control-allow-origin: *" in h.lower()):
             return None
 
@@ -171,9 +171,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
-            statusCode = responseInfo.getStatusCode()
             if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType):
-              return True
+                return True
         return False
         
 
