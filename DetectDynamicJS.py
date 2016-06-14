@@ -73,9 +73,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = self._requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         
-        # Check if the script is world readable
-        resHeaders = responseInfo.getHeaders()
-        if any(h for h in resHeaders if "access-control-allow-origin: *" in h.lower()):
+        # Scan only if the statusCode is 200
+        statusCode = responseInfo.getStatusCode()
+        if statusCode != 200:
             return None
 
         # Check for authorization
