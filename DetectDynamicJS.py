@@ -70,6 +70,21 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._requestResponse = baseRequestResponse
         self._helpers = self._callbacks.getHelpers()
         
+        response = self._requestResponse.getResponse()
+        responseInfo = self._helpers.analyzeResponse(response)
+        
+        # Scan only if the statusCode is 200
+        statusCode = responseInfo.getStatusCode()
+        if statusCode != 200:
+            return None
+
+        # Check for authorization
+        reqHeaders = self._helpers.analyzeRequest(self._requestResponse).getHeaders()
+        hfields = [h.split(':')[0] for h in reqHeaders]
+        ifields = ['cookie','authorization']
+        if not any(h for h in ifields if h not in str(hfields).lower()):
+            return None
+
         url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
         fileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
@@ -80,14 +95,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             fileEnding = fileEnding.split("?")[0]
             
         url = str(url).split("?")[0]
-        response = self._requestResponse.getResponse()
-        responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
+        ichars = ['{','<']
         
         contentLengthL = [x for x in headers if "content-length:" in x.lower()]
         if len(contentLengthL) >= 1:
@@ -100,9 +114,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
-            statusCode = responseInfo.getStatusCode()
             # this might need extension
-            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and (int(statusCode) < 300 or int(statusCode) > 399) and first_char != "{":
+            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
                 request = self._requestResponse.getRequest()
                 requestInfo = self._helpers.analyzeRequest(request)
                 requestBodyOffset = requestInfo.getBodyOffset()
@@ -153,8 +166,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
-            statusCode = responseInfo.getStatusCode()
-            if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and (int(statusCode) < 300 or int(statusCode) > 399):
+            if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType):
                 return True
         return False
         
@@ -163,6 +175,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """Compare two responses in respect to their body contents"""
         nResponse = newResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
+          
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
         
