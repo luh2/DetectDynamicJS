@@ -67,10 +67,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         scan_issues = []
         possibleFileEndings = ["js", "jsp", "json"]
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
-        self._requestResponse = baseRequestResponse
         self._helpers = self._callbacks.getHelpers()
         
-        response = self._requestResponse.getResponse()
+        response = baseRequestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         
         # Scan only if the statusCode is 200
@@ -79,13 +78,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return None
 
         # Check for authorization
-        reqHeaders = self._helpers.analyzeRequest(self._requestResponse).getHeaders()
+        reqHeaders = self._helpers.analyzeRequest(baseRequestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         ifields = ['cookie','authorization']
         if not any(h for h in ifields if h not in str(hfields).lower()):
             return None
 
-        url = self._helpers.analyzeRequest(self._requestResponse).getUrl()
+        url = self._helpers.analyzeRequest(baseRequestResponse).getUrl()
         fileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
         if len(urlSplit) != 0:
@@ -116,23 +115,23 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                 contentType = contentTypeL[0].lower()
             # this might need extension
             if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
-                request = self._requestResponse.getRequest()
+                request = baseRequestResponse.getRequest()
                 requestInfo = self._helpers.analyzeRequest(request)
                 requestBodyOffset = requestInfo.getBodyOffset()
                 requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
                 requestBody = request.tostring()[requestBodyOffset:]
                 modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
-                newResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-                issue = self.compareResponses(newResponse, self._requestResponse)
+                newResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                issue = self.compareResponses(newResponse, baseRequestResponse)
                 if issue:
                     # If response is script, check if script is dynamic
                     if self.isScript(newResponse):
                         # sleep, in case this is a generically time stamped script
                         sleep(1)
-                        secondResponse = self._callbacks.makeHttpRequest(self._requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                        secondResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
                         isDynamic = self.compareResponses(secondResponse, newResponse)
                         if isDynamic:
-                            issue = self.reportDynamicOnly(newResponse, self._requestResponse, secondResponse)
+                            issue = self.reportDynamicOnly(newResponse, baseRequestResponse, secondResponse)
                     scan_issues.append(issue)
         if len(scan_issues) > 0:
             return scan_issues
@@ -194,8 +193,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issueconfidence = "Firm"
             oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
             nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
-            result = ScanIssue(self._requestResponse.getHttpService(),
-                               self._helpers.analyzeRequest(self._requestResponse).getUrl(),
+            result = ScanIssue(oldResponse.getHttpService(),
+                               self._helpers.analyzeRequest(oldResponse).getUrl(),
                                issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
                                [self._callbacks.applyMarkers(oldResponse, None, oOffsets), self._callbacks.applyMarkers(newResponse, None, nOffsets)])
         else:
@@ -231,8 +230,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
         nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
         sOffsets = self.calculateHighlights(oBody, sBody, sBodyOffset)
-        result = ScanIssue(self._requestResponse.getHttpService(),
-                           self._helpers.analyzeRequest(self._requestResponse).getUrl(),
+        result = ScanIssue(originalResponse.getHttpService(),
+                           self._helpers.analyzeRequest(originalResponse).getUrl(),
                            issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
                            [self._callbacks.applyMarkers(originalResponse, None, oOffsets),
                             self._callbacks.applyMarkers(firstResponse, None, nOffsets),
