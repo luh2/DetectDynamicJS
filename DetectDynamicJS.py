@@ -131,9 +131,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
-        return all(self.hasValidStatusCode(responseInfo.getStatusCode()),
+        return all([self.hasValidStatusCode(responseInfo.getStatusCode()),
                    self.hasAuthorizationCharacteristic(requestResponse),
-                   self.hasBody(responseInfo.getHeaders()))
+                   self.hasBody(responseInfo.getHeaders())])
 
     def hasValidStatusCode(self, statusCode):
         """
