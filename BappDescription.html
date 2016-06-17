@@ -1,6 +1,6 @@
-<p>This extension compares JavaScript files with each other to detect dynamically generated content. This occasionally contains not only code but also <em>data</em> with user or session information. User/session information can then be checked for potential leakage. This extension is supposed to help hunting for exploitable situations.</p>
+<p>This extension compares JavaScript files with each other to detect dynamically generated content and content that is only accessible when the user is authenticated. This occasionally contains not only code but also <em>data</em> with user or session information. User/session information can then be checked for potential leakage. This extension is supposed to help hunting for exploitable situations.</p>
 <br>
-<p>To trigger the extension, simply launch a passive scan of your JavaScript files that you have requested as authenticated user. Despite being a passive scan, the extension will generate one request per script without cookies to get the non-authenticated version of the script.</p>
+<p>To trigger the extension, simply launch a passive scan of your JavaScript files that you have requested as authenticated user. Despite being a passive scan, the extension will generate one or sometimes two request per script without cookies to get the non-authenticated version of the script.</p>
 <p>If the same script is found to contain differing content, the extension will report an issue in the Target tab. </p>
 <br>
  
