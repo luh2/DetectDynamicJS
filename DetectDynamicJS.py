@@ -94,37 +94,30 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         first_char = body[0:1]
         ichars = ['{','<']
         
-        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
-        if len(contentLengthL) >= 1:
-            contentLength = int(contentLengthL[0].split(':')[1].strip())
-        else:
-            contentLength = 0
-        
-        if contentLength > 0:
-            contentType = ""
-            contentTypeL = [x for x in headers if "content-type:" in x.lower()]
-            if len(contentTypeL) == 1:
-                contentType = contentTypeL[0].lower()
-            # this might need extension
-            if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
-                request = baseRequestResponse.getRequest()
-                requestInfo = self._helpers.analyzeRequest(request)
-                requestBodyOffset = requestInfo.getBodyOffset()
-                requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
-                requestBody = request.tostring()[requestBodyOffset:]
-                modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
-                newResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-                issue = self.compareResponses(newResponse, baseRequestResponse)
-                if issue:
-                    # If response is script, check if script is dynamic
-                    if self.isScript(newResponse):
-                        # sleep, in case this is a generically time stamped script
-                        sleep(1)
-                        secondResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-                        isDynamic = self.compareResponses(secondResponse, newResponse)
-                        if isDynamic:
-                            issue = self.reportDynamicOnly(newResponse, baseRequestResponse, secondResponse)
-                    scan_issues.append(issue)
+        contentType = ""
+        contentTypeL = [x for x in headers if "content-type:" in x.lower()]
+        if len(contentTypeL) == 1:
+            contentType = contentTypeL[0].lower()
+        # this might need extension
+        if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
+            request = baseRequestResponse.getRequest()
+            requestInfo = self._helpers.analyzeRequest(request)
+            requestBodyOffset = requestInfo.getBodyOffset()
+            requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
+            requestBody = request.tostring()[requestBodyOffset:]
+            modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
+            newResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+            issue = self.compareResponses(newResponse, baseRequestResponse)
+            if issue:
+                # If response is script, check if script is dynamic
+                if self.isScript(newResponse):
+                    # sleep, in case this is a generically time stamped script
+                    sleep(1)
+                    secondResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                    isDynamic = self.compareResponses(secondResponse, newResponse)
+                    if isDynamic:
+                        issue = self.reportDynamicOnly(newResponse, baseRequestResponse, secondResponse)
+                scan_issues.append(issue)
         if len(scan_issues) > 0:
             return scan_issues
         else:
@@ -139,7 +132,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         return all(self.hasValidStatusCode(responseInfo.getStatusCode()),
-                   self.hasAuthorizationCharacteristic(requestResponse))
+                   self.hasAuthorizationCharacteristic(requestResponse),
+                   self.hasBody(responseInfo.getHeaders()))
 
     def hasValidStatusCode(self, statusCode):
         """
@@ -155,6 +149,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         return any(h for h in self.ifields if h not in str(hfields).lower())
+
+    def hasBody(self, headers):
+        """
+        Checks whether the response has a positive content-length
+        """
+        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
+        if contentLengthL:
+            return int(contentLengthL[0].split(':')[1].strip()) > 0
+        return False
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
