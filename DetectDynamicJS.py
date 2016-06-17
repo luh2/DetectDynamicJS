@@ -46,7 +46,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._callbacks.registerScannerCheck(self)
         self._callbacks.registerExtensionStateListener(self)
         self._helpers = callbacks.getHelpers()
-        
+        # Define some constants
+        self.validStatusCodes = [200]
         print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
         return
 
@@ -72,9 +73,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = baseRequestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         
-        # Scan only if the statusCode is 200
-        statusCode = responseInfo.getStatusCode()
-        if statusCode != 200:
+        if not self.isScannableRequest(baseRequestResponse):
             return None
 
         # Check for authorization
@@ -138,6 +137,22 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return None
     
+    def isScannableRequest(self, requestResponse):
+        """
+        Checks whether the given request is actually of interest to this scanner
+        module.
+        requestResponse: The rqeuest to evaluate
+        """
+        response = baseRequestResponse.getResponse()
+        responseInfo = self._helpers.analyzeResponse(response)
+        return all(self.hasValidStatusCode(responseInfo.getStatusCode()))
+        
+
+    def hasValidStatusCode(self, statusCode):
+        """
+        Checks the status code of the request
+        """
+        return statusCode in self.validStatusCodes
  
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
@@ -170,15 +185,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         return False
         
 
-    def compareResponses(self, newResponse, oldResponse):
+    def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
-        nResponse = newResponse.getResponse()
+        nResponse = newRequestResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
           
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
         
-        oResponse = oldResponse.getResponse()
+        oResponse = oldRequestResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
         oBody = oResponse.tostring()[oBodyOffset:]
@@ -193,12 +208,12 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             issueconfidence = "Firm"
             oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
             nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
-            result = ScanIssue(oldResponse.getHttpService(),
-                               self._helpers.analyzeRequest(oldResponse).getUrl(),
+            result = ScanIssue(oldRequestResponse.getHttpService(),
+                               self._helpers.analyzeRequest(oldRequestResponse).getUrl(),
                                issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
-                               [self._callbacks.applyMarkers(oldResponse, None, oOffsets), self._callbacks.applyMarkers(newResponse, None, nOffsets)])
+                               [self._callbacks.applyMarkers(oldRequestResponse, None, oOffsets), self._callbacks.applyMarkers(newRequestResponse, None, nOffsets)])
         else:
-            url = self._helpers.analyzeRequest(newResponse).getUrl()
+            url = self._helpers.analyzeRequest(newRequestResponse).getUrl()
             url = str(url)
             
         return result
