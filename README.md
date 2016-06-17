@@ -2,7 +2,7 @@
 
 The DetectDynamicJS Burp Extension provides an additional passive scanner that tries to find differing content in JavaScript files and aid in finding user/session data.
 
-Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. For more information about the reasons, the ways to find or how to exploit this issue, see [Cross-Site Script Inclusion](http://www.scip.ch/en/?labs.20160414).
+Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. For more information about the reasons, the ways to find or how to exploit this issue, see [Cross-Site Script Inclusion](http://www.scip.ch/en/?labs.20160414). For those that prefer to watch, there is a presentation from [Security Fest 2016](https://www.youtube.com/watch?v=5qA0CtS6cZ4).
 
 ## Note on Release 0.6 (Marsellus Wallace)
 If necessary, the extension will now issue two requests to reduce false positives. Also, depending on how the issue was discovered, it might be rated as Information and not as Medium.
