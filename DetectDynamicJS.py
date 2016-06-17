@@ -36,20 +36,20 @@ VERSIONNAME = 'Marsellus Wallace'
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
 
-    def	registerExtenderCallbacks(self, callbacks):
+    def registerExtenderCallbacks(self, callbacks):
 
         print "Loading..."
 
         self._callbacks = callbacks
         self._callbacks.setExtensionName('Detect Dynamic JS')
-        
+
         self._callbacks.registerScannerCheck(self)
         self._callbacks.registerExtensionStateListener(self)
         self._helpers = callbacks.getHelpers()
         # Define some constants
         self.validStatusCodes = [200]
         self.ifields = ['cookie', 'authorization']
-        print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
+        print "Loaded Detect Dynamic JS v%s (%s)!" % (VERSION, VERSIONNAME)
         return
 
     def extensionUnloaded(self):
@@ -64,7 +64,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # doPassiveScan issues always at least one, if not two requests,
         # per request scanned
         # This is, because the insertionPoint idea doesn't work well
-        # for this test. 
+        # for this test.
         scan_issues = []
         possibleFileEndings = ["js", "jsp", "json"]
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
@@ -84,7 +84,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             fileNameSplit = fileName.split(".")
             fileEnding = fileNameSplit[len(fileNameSplit)-1]
             fileEnding = fileEnding.split("?")[0]
-            
+
         url = str(url).split("?")[0]
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
@@ -92,8 +92,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         headers = response.tostring()[:bodyOffset].split('\r\n')
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
-        ichars = ['{','<']
-        
+        ichars = ['{', '<']
+
         contentType = ""
         contentTypeL = [x for x in headers if "content-type:" in x.lower()]
         if len(contentTypeL) == 1:
@@ -163,23 +163,23 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """Determine if the response is a script"""
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self._helpers = self._callbacks.getHelpers()
-        
+
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
         url = str(url).split("?")[0]
-        
+
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
-        
+
         contentLengthL = [x for x in headers if "content-length:" in x.lower()]
         if len(contentLengthL) >= 1:
             contentLength = int(contentLengthL[0].split(':')[1].strip())
         else:
             contentLength = 0
-        
+
         if contentLength > 0:
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
@@ -193,15 +193,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """Compare two responses in respect to their body contents"""
         nResponse = newRequestResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
-          
+
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
-        
+
         oResponse = oldRequestResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
         oBody = oResponse.tostring()[oBodyOffset:]
-        
+
         result = None
         if str(nBody) != str(oBody):
             issuename = "Dynamic JavaScript Code Detected"
@@ -219,7 +219,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             url = self._helpers.analyzeRequest(newRequestResponse).getUrl()
             url = str(url)
-            
+
         return result
 
     def reportDynamicOnly(self, firstResponse, originalResponse, secondResponse):
@@ -235,7 +235,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
-        
+
         oResponse = originalResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
@@ -245,7 +245,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         sResponseInfo = self._helpers.analyzeResponse(sResponse)
         sBodyOffset = sResponseInfo.getBodyOffset()
         sBody = sResponse.tostring()[sBodyOffset:]
-        
+
         oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
         nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
         sOffsets = self.calculateHighlights(oBody, sBody, sBodyOffset)
@@ -256,7 +256,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                             self._callbacks.applyMarkers(firstResponse, None, nOffsets),
                             self._callbacks.applyMarkers(secondResponse, None, sOffsets)])
         return result
-        
+
     def calculateHighlights(self, newBody, oldBody, bodyOffset):
         """find the exact points for highlighting the responses"""
         s = difflib.SequenceMatcher(None, oldBody, newBody)
@@ -281,7 +281,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                 poszero = m.a + m.size 
         return offsets
 
-
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
         existingIssueResponses = []
         newIssueResponses = []
@@ -292,7 +291,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             nBodyOffset = nResponseInfo.getBodyOffset()
             nBody = nResponse.tostring()[nBodyOffset:]
 #            newIssueResponses.append(nBody)
-            
+
         for oldResponse in existingIssue.getHttpMessages():
             oResponse = oldResponse.getResponse()
             oResponseInfo = self._helpers.analyzeResponse(oResponse)
@@ -310,6 +309,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return 0
 
+
 class ScanIssue(IScanIssue):
     def __init__(self, httpservice, url, name, severity, detailmsg, background, remediation, confidence, requests):
         self._url = url
@@ -321,7 +321,7 @@ class ScanIssue(IScanIssue):
         self._issueremediation = remediation
         self._confidence = confidence
         self._httpmsgs = requests
-        
+
     def getUrl(self):
         return self._url
 
