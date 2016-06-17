@@ -48,9 +48,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._helpers = callbacks.getHelpers()
         # Define some constants
         self.validStatusCodes = [200]
+        self.ifields = ['cookie', 'authorization']
         print "Loaded Detect Dynamic JS v"+VERSION+" ("+VERSIONNAME+")!"
         return
-
 
     def extensionUnloaded(self):
         print "Unloaded"
@@ -58,7 +58,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def doActiveScan(self, baseRequestResponse, insertionPoint):
         return []
-    
+
     def doPassiveScan(self, baseRequestResponse):
         # WARNING: NOT REALLY A PASSIVE SCAN!
         # doPassiveScan issues always at least one, if not two requests,
@@ -69,18 +69,11 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         possibleFileEndings = ["js", "jsp", "json"]
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self._helpers = self._callbacks.getHelpers()
-        
+
         response = baseRequestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
-        
-        if not self.isScannableRequest(baseRequestResponse):
-            return None
 
-        # Check for authorization
-        reqHeaders = self._helpers.analyzeRequest(baseRequestResponse).getHeaders()
-        hfields = [h.split(':')[0] for h in reqHeaders]
-        ifields = ['cookie','authorization']
-        if not any(h for h in ifields if h not in str(hfields).lower()):
+        if not self.isScannableRequest(baseRequestResponse):
             return None
 
         url = self._helpers.analyzeRequest(baseRequestResponse).getUrl()
@@ -136,24 +129,33 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return scan_issues
         else:
             return None
-    
+
     def isScannableRequest(self, requestResponse):
         """
         Checks whether the given request is actually of interest to this scanner
         module.
         requestResponse: The rqeuest to evaluate
         """
-        response = baseRequestResponse.getResponse()
+        response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
-        return all(self.hasValidStatusCode(responseInfo.getStatusCode()))
-        
+        return all(self.hasValidStatusCode(responseInfo.getStatusCode()),
+                   self.hasAuthorizationCharacteristic(requestResponse))
 
     def hasValidStatusCode(self, statusCode):
         """
         Checks the status code of the request
         """
         return statusCode in self.validStatusCodes
- 
+
+    def hasAuthorizationCharacteristic(self, requestResponse):
+        """
+        Detects whether the request contains some kind of authorisation
+        information.
+        """
+        reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
+        hfields = [h.split(':')[0] for h in reqHeaders]
+        return any(h for h in self.ifields if h not in str(hfields).lower())
+
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
         possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
@@ -183,7 +185,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType):
                 return True
         return False
-        
 
     def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
