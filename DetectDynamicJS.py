@@ -174,13 +174,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
 
-        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
-        if len(contentLengthL) >= 1:
-            contentLength = int(contentLengthL[0].split(':')[1].strip())
-        else:
-            contentLength = 0
-
-        if contentLength > 0:
+        if self.hasBody(responseInfo.getHeaders()):
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
