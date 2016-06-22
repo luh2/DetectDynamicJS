@@ -49,6 +49,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # Define some constants
         self.validStatusCodes = [200]
         self.ifields = ['cookie', 'authorization']
+        self.possibleFileEndings = ["js", "jsp", "json"]
+        self.possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
+        self.ichars = ['{', '<']
         print "Loaded Detect Dynamic JS v%s (%s)!" % (VERSION, VERSIONNAME)
         return
 
@@ -66,40 +69,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # This is, because the insertionPoint idea doesn't work well
         # for this test.
         scan_issues = []
-        possibleFileEndings = ["js", "jsp", "json"]
-        possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self._helpers = self._callbacks.getHelpers()
-
-        response = baseRequestResponse.getResponse()
-        responseInfo = self._helpers.analyzeResponse(response)
 
         if not self.isScannableRequest(baseRequestResponse):
             return None
 
-        url = self._helpers.analyzeRequest(baseRequestResponse).getUrl()
-        fileEnding = ".totallynotit"
-        urlSplit = str(url).split("/")
-        if len(urlSplit) != 0:
-            fileName = urlSplit[len(urlSplit)-1]
-            fileNameSplit = fileName.split(".")
-            fileEnding = fileNameSplit[len(fileNameSplit)-1]
-            fileEnding = fileEnding.split("?")[0]
-
-        url = str(url).split("?")[0]
-        mimeType = responseInfo.getStatedMimeType().split(';')[0]
-        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
-        bodyOffset = responseInfo.getBodyOffset()
-        headers = response.tostring()[:bodyOffset].split('\r\n')
-        body = response.tostring()[bodyOffset:]
-        first_char = body[0:1]
-        ichars = ['{', '<']
-
-        contentType = ""
-        contentTypeL = [x for x in headers if "content-type:" in x.lower()]
-        if len(contentTypeL) == 1:
-            contentType = contentTypeL[0].lower()
         # this might need extension
-        if (any(fileEnd in fileEnding for fileEnd in possibleFileEndings) or any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType) and first_char not in ichars:
+        if self.isScript(baseRequestResponse):
             request = baseRequestResponse.getRequest()
             requestInfo = self._helpers.analyzeRequest(request)
             requestBodyOffset = requestInfo.getBodyOffset()
@@ -161,11 +137,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
-        possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self._helpers = self._callbacks.getHelpers()
 
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
-        url = str(url).split("?")[0]
+        fileEnding = ".totallynotit"
+        urlSplit = str(url).split("/")
+        if len(urlSplit) != 0:
+            fileName = urlSplit[len(urlSplit)-1]
+            fileNameSplit = fileName.split(".")
+            fileEnding = fileNameSplit[len(fileNameSplit)-1]
+            fileEnding = fileEnding.split("?")[0]
 
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
@@ -173,14 +154,17 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         headers = response.tostring()[:bodyOffset].split('\r\n')
+        body = response.tostring()[bodyOffset:]
+        first_char = body[0:1]
 
         if self.hasBody(responseInfo.getHeaders()):
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
                 contentType = contentTypeL[0].lower()
-            if (any(content in contentType for content in possibleContentTypes) or "script" in inferredMimeType or "script" in mimeType):
-                return True
+            return (any(content in contentType for content in self.possibleContentTypes) or
+                    any(fileEnd in fileEnding for fileEnd in self.possibleFileEndings) or
+                    "script" in inferredMimeType or "script" in mimeType) and first_char not in self.ichars
         return False
 
     def compareResponses(self, newRequestResponse, oldRequestResponse):
