@@ -202,7 +202,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
         return result
 
-    def reportDynamicOnly(self, firstResponse, originalResponse, secondResponse):
+    def reportDynamicOnly(self, firstRequestResponse, originalRequestResponse, secondRequestResponse):
         """Report Situation as Dynamic Only"""
         issuename = "Dynamic JavaScript Code Detected"
         issuelevel = "Information"
@@ -211,17 +211,17 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
         issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
 
-        nResponse = firstResponse.getResponse()
+        nResponse = firstRequestResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
         nBodyOffset = nResponseInfo.getBodyOffset()
         nBody = nResponse.tostring()[nBodyOffset:]
 
-        oResponse = originalResponse.getResponse()
+        oResponse = originalRequestResponse.getResponse()
         oResponseInfo = self._helpers.analyzeResponse(oResponse)
         oBodyOffset = oResponseInfo.getBodyOffset()
         oBody = oResponse.tostring()[oBodyOffset:]
 
-        sResponse = secondResponse.getResponse()
+        sResponse = secondRequestResponse.getResponse()
         sResponseInfo = self._helpers.analyzeResponse(sResponse)
         sBodyOffset = sResponseInfo.getBodyOffset()
         sBody = sResponse.tostring()[sBodyOffset:]
@@ -229,12 +229,12 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
         nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
         sOffsets = self.calculateHighlights(oBody, sBody, sBodyOffset)
-        result = ScanIssue(originalResponse.getHttpService(),
-                           self._helpers.analyzeRequest(originalResponse).getUrl(),
+        result = ScanIssue(originalRequestResponse.getHttpService(),
+                           self._helpers.analyzeRequest(originalRequestResponse).getUrl(),
                            issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
-                           [self._callbacks.applyMarkers(originalResponse, None, oOffsets),
-                            self._callbacks.applyMarkers(firstResponse, None, nOffsets),
-                            self._callbacks.applyMarkers(secondResponse, None, sOffsets)])
+                           [self._callbacks.applyMarkers(originalRequestResponse, None, oOffsets),
+                            self._callbacks.applyMarkers(firstRequestResponse, None, nOffsets),
+                            self._callbacks.applyMarkers(secondRequestResponse, None, sOffsets)])
         return result
 
     def calculateHighlights(self, newBody, oldBody, bodyOffset):
