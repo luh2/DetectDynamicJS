@@ -185,34 +185,36 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
+        result = None
         nResponse = newRequestResponse.getResponse()
         nResponseInfo = self._helpers.analyzeResponse(nResponse)
+        if nResponseInfo.getStatusCode() != 304:
+            nBodyOffset = nResponseInfo.getBodyOffset()
+            nBody = nResponse.tostring()[nBodyOffset:]
 
-        nBodyOffset = nResponseInfo.getBodyOffset()
-        nBody = nResponse.tostring()[nBodyOffset:]
+            oResponse = oldRequestResponse.getResponse()
+            oResponseInfo = self._helpers.analyzeResponse(oResponse)
+            oBodyOffset = oResponseInfo.getBodyOffset()
+            oBody = oResponse.tostring()[oBodyOffset:]
 
-        oResponse = oldRequestResponse.getResponse()
-        oResponseInfo = self._helpers.analyzeResponse(oResponse)
-        oBodyOffset = oResponseInfo.getBodyOffset()
-        oBody = oResponse.tostring()[oBodyOffset:]
 
-        result = None
-        if str(nBody) != str(oBody):
-            issuename = "Dynamic JavaScript Code Detected"
-            issuelevel = "Medium"
-            issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
-            issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
-            issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-            issueconfidence = "Firm"
-            oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
-            nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
-            result = ScanIssue(oldRequestResponse.getHttpService(),
-                               self._helpers.analyzeRequest(oldRequestResponse).getUrl(),
-                               issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
-                               [self._callbacks.applyMarkers(oldRequestResponse, None, oOffsets), self._callbacks.applyMarkers(newRequestResponse, None, nOffsets)])
-        else:
-            url = self._helpers.analyzeRequest(newRequestResponse).getUrl()
-            url = str(url)
+            if str(nBody) != str(oBody):
+                issuename = "Dynamic JavaScript Code Detected"
+                issuelevel = "Medium"
+                issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
+                issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
+                issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
+                issueconfidence = "Firm"
+                oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
+                nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
+                result = ScanIssue(oldRequestResponse.getHttpService(),
+                                   self._helpers.analyzeRequest(oldRequestResponse).getUrl(),
+                                   issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
+                                   [self._callbacks.applyMarkers(oldRequestResponse, None, oOffsets), self._callbacks.applyMarkers(newRequestResponse, None, nOffsets)])
+            # solely for debugging purposes
+            else:
+                url = self._helpers.analyzeRequest(newRequestResponse).getUrl()
+                url = str(url)
 
         return result
 
