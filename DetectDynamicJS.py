@@ -262,29 +262,14 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         return offsets
 
     def consolidateDuplicateIssues(self, existingIssue, newIssue):
-        existingIssueResponses = []
-        newIssueResponses = []
-        sameMessages = 0
-        for newResponse in newIssue.getHttpMessages():
-            nResponse = newResponse.getResponse()
-            nResponseInfo = self._helpers.analyzeResponse(nResponse)
-            nBodyOffset = nResponseInfo.getBodyOffset()
-            nBody = nResponse.tostring()[nBodyOffset:]
-#            newIssueResponses.append(nBody)
+        newRequestResponse = newIssue.getHttpMessages()[0]
+        newUrl = str(self._helpers.analyzeRequest(newRequestResponse).getUrl())
+        existingRequestResponse = existingIssue.getHttpMessages()[0]
+        existingUrl = str(self._helpers.analyzeRequest(existingRequestResponse).getUrl())
 
-        for oldResponse in existingIssue.getHttpMessages():
-            oResponse = oldResponse.getResponse()
-            oResponseInfo = self._helpers.analyzeResponse(oResponse)
-            oBodyOffset = oResponseInfo.getBodyOffset()
-            oBody = oResponse.tostring()[oBodyOffset:]
-#            existingIssueResponses.append(oBody)
-
-        for newIssueResp in newIssueResponses:
-            for existingIssueResp in existingIssueResponses:
-                if newIssueResp == existingIssueResp:
-                    sameMessages += 1
-                    break
-        if sameMessages == 2:
+        if (existingIssue.getIssueName() == newIssue.getIssueName() and
+            existingIssue.getIssueType() == newIssue.getIssueType() and
+            existingUrl == newUrl):
             return -1
         else:
             return 0
