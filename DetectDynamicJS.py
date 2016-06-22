@@ -106,17 +106,17 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
             requestBody = request.tostring()[requestBodyOffset:]
             modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
-            newResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-            issue = self.compareResponses(newResponse, baseRequestResponse)
+            newRequestResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+            issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
                 # If response is script, check if script is dynamic
-                if self.isScript(newResponse):
+                if self.isScript(newRequestResponse):
                     # sleep, in case this is a generically time stamped script
                     sleep(1)
-                    secondResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-                    isDynamic = self.compareResponses(secondResponse, newResponse)
+                    secondRequestResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                    isDynamic = self.compareResponses(secondRequestResponse, newRequestResponse)
                     if isDynamic:
-                        issue = self.reportDynamicOnly(newResponse, baseRequestResponse, secondResponse)
+                        issue = self.reportDynamicOnly(newRequestResponse, baseRequestResponse, secondRequestResponse)
                 scan_issues.append(issue)
         if len(scan_issues) > 0:
             return scan_issues
