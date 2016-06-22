@@ -77,11 +77,10 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # this might need extension
         if self.isScript(baseRequestResponse):
             request = baseRequestResponse.getRequest()
-            requestInfo = self._helpers.analyzeRequest(request)
+            # TODO: Remove body in case it is POST and turn into GET
             requestBodyOffset = requestInfo.getBodyOffset()
-            requestHeaders = request.tostring()[:requestBodyOffset].split('\r\n')
             requestBody = request.tostring()[requestBodyOffset:]
-            modified_headers = "\n".join(header for header in requestHeaders if "Cookie" not in header)
+            modified_headers = self.stripAuthorizationCharacteristics(baseRequestResponse)
             newRequestResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
             issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
@@ -119,12 +118,20 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def hasAuthorizationCharacteristic(self, requestResponse):
         """
-        Detects whether the request contains some kind of authorisation
+        Detects whether the request contains some kind of authorization
         information.
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         return any(h for h in self.ifields if h not in str(hfields).lower())
+
+    def stripAuthorizationCharacteristics(self, requestResponse):
+        """
+        Strip possible ambient authority information.
+        """
+        reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
+        stripped_headers = "\n".join(header for header in reqHeaders if header.split(':')[0].lower() not in self.ifields)
+        return stripped_headers
 
     def hasBody(self, headers):
         """
