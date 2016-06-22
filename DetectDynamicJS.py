@@ -78,6 +78,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         if self.isScript(baseRequestResponse):
             request = baseRequestResponse.getRequest()
             # TODO: Remove body in case it is POST and turn into GET
+            requestInfo = self._helpers.analyzeRequest(request)
             requestBodyOffset = requestInfo.getBodyOffset()
             requestBody = request.tostring()[requestBodyOffset:]
             modified_headers = self.stripAuthorizationCharacteristics(baseRequestResponse)
@@ -131,6 +132,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         stripped_headers = "\n".join(header for header in reqHeaders if header.split(':')[0].lower() not in self.ifields)
+        stripped_headers += "\n\n"
         return stripped_headers
 
     def hasBody(self, headers):
@@ -185,6 +187,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
             oResponse = oldRequestResponse.getResponse()
             oResponseInfo = self._helpers.analyzeResponse(oResponse)
+
             oBodyOffset = oResponseInfo.getBodyOffset()
             oBody = oResponse.tostring()[oBodyOffset:]
 
