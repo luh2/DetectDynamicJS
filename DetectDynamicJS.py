@@ -64,7 +64,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def doPassiveScan(self, baseRequestResponse):
         # WARNING: NOT REALLY A PASSIVE SCAN!
-        # doPassiveScan issues always at least one, if not two requests,
+        # doPassiveScan issues 1 request if simply dynamic JS
+        # 2 requests if generically dynamic
+        # 3 requests if it was a POST that works as GET
         # per request scanned
         # This is, because the insertionPoint idea doesn't work well
         # for this test.
@@ -75,6 +77,10 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return None
 
         if self.isScript(baseRequestResponse):
+            if not self.isGet(baseRequestResponse.getRequest()):
+                baseRequestResponse = self.switchMethod(baseRequestResponse)
+                if not self.isScannableRequest(baseRequestResponse) or not self.isScript(baseRequestResponse):
+                    return None
             newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
             issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
@@ -99,13 +105,25 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         returns a requestResponse
         """
         request = requestResponse.getRequest()
-        # TODO: Remove body in case it is POST and turn into GET
         requestInfo = self._helpers.analyzeRequest(request)
-        requestBodyOffset = requestInfo.getBodyOffset()
-        requestBody = request.tostring()[requestBodyOffset:]
         modified_headers = self.stripAuthorizationCharacteristics(requestResponse)
-        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
-            
+        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers))
+
+    def isGet(self, request):
+        """
+        Check whether the request method is GET
+        """
+        requestInfo = self._helpers.analyzeRequest(request)
+        return requestInfo.getMethod() == "GET"
+
+    def switchMethod(self, requestResponse):
+        """
+        Turn POST into GET
+        """
+        newRequest = self._helpers.toggleRequestMethod(requestResponse.getRequest())
+        newRequestResponse = self._callbacks.makeHttpRequest(requestResponse.getHttpService(), newRequest)
+        return newRequestResponse
+
     def isScannableRequest(self, requestResponse):
         """
         Checks whether the given request is actually of interest to this scanner
@@ -139,7 +157,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         stripped_headers = "\n".join(header for header in reqHeaders if header.split(':')[0].lower() not in self.ifields)
-        stripped_headers += "\n\n"
+        stripped_headers += "\r\n"
         return stripped_headers
 
     def hasBody(self, headers):
