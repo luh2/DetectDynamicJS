@@ -74,22 +74,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         if not self.isScannableRequest(baseRequestResponse):
             return None
 
-        # this might need extension
         if self.isScript(baseRequestResponse):
-            request = baseRequestResponse.getRequest()
-            # TODO: Remove body in case it is POST and turn into GET
-            requestInfo = self._helpers.analyzeRequest(request)
-            requestBodyOffset = requestInfo.getBodyOffset()
-            requestBody = request.tostring()[requestBodyOffset:]
-            modified_headers = self.stripAuthorizationCharacteristics(baseRequestResponse)
-            newRequestResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+            newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
             issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
                 # If response is script, check if script is dynamic
                 if self.isScript(newRequestResponse):
                     # sleep, in case this is a generically time stamped script
                     sleep(1)
-                    secondRequestResponse = self._callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+                    secondRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
                     isDynamic = self.compareResponses(secondRequestResponse, newRequestResponse)
                     if isDynamic:
                         issue = self.reportDynamicOnly(newRequestResponse, baseRequestResponse, secondRequestResponse)
@@ -99,11 +92,25 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         else:
             return None
 
+    def sendUnauthenticatedRequest(self, requestResponse):
+        """
+        Send the request without ambient authority information
+        requestResponse: The request to send again
+        returns a requestResponse
+        """
+        request = requestResponse.getRequest()
+        # TODO: Remove body in case it is POST and turn into GET
+        requestInfo = self._helpers.analyzeRequest(request)
+        requestBodyOffset = requestInfo.getBodyOffset()
+        requestBody = request.tostring()[requestBodyOffset:]
+        modified_headers = self.stripAuthorizationCharacteristics(requestResponse)
+        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers+requestBody))
+            
     def isScannableRequest(self, requestResponse):
         """
         Checks whether the given request is actually of interest to this scanner
         module.
-        requestResponse: The rqeuest to evaluate
+        requestResponse: The request to evaluate
         """
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
