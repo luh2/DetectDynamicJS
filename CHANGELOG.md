@@ -1,11 +1,18 @@
 # Changelog
 
+<a name="0.7"></a>
+## v0.7 (Captain Koons)
+	- fix race condition
+	- fix `consolidateDuplicateIssues`
+	- handle basic auth
+	- code clean up
+
 <a name="0.6"></a>
 ## v0.6 (Marsellus Wallace)
-	- issue a third request to reduce false positives
+	- issue a second request to reduce false positives
 	- report authentication-based findings as (Medium, Firm)
 	- report generic dynamic as (Information, Certain), might be removed in future version
-	
+
 <a name="0.5"></a>
 ## v0.5 (Jules Winnfield)
 	- Bug fix
