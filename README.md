@@ -1,14 +1,8 @@
 # DetectDynamicJS Burp Extension
 
-The DetectDynamicJS Burp Extension provides an additional passive scanner that tries to find differing content in JavaScript files and aid in finding user/session data.
+The DetectDynamicJS Burp Extension provides an additional passive scanner that tries to find differing content in JavaScript files, based on removal of ambient authority information and aid in finding user/session data.
 
 Dynamically Generated JavaScript occasionally contains *data* in addition to code. Since, by default, scripts need to be able to be included by third parties, this can lead to leakage. For more information about the reasons, the ways to find or how to exploit this issue, see [Cross-Site Script Inclusion](http://www.scip.ch/en/?labs.20160414). For those that prefer to watch, there is a presentation from [Security Fest 2016](https://www.youtube.com/watch?v=5qA0CtS6cZ4).
-
-## Note on Release 0.6 (Marsellus Wallace)
-If necessary, the extension will now issue two requests to reduce false positives. Also, depending on how the issue was discovered, it might be rated as Information and not as Medium.
-
-## Note on Release 0.3 (Mia Wallace)
-We decided to improve the usability by not requiring the user to request both the non-authenticated version and the authenticated version of the script. Instead, when calling a passive scan of the authenticated version of the script, the extension requests the non-authenticated version by itself. This has proven to be more comfortable. It should be noted that the extension is still a passive scanner module, despite the fact that it issues a request per scanned file.
 
 ## Requirements
 This plugin requires Jython 2.7 and Python difflib, which is included in most Python environments. See heading [Python Environment](http://portswigger.net/burp/help/extender.html) in the official documentation of Burp. 
