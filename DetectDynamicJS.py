@@ -78,12 +78,17 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
         if self.isScript(baseRequestResponse):
             if not self.isGet(baseRequestResponse.getRequest()):
+                print "is post"
                 baseRequestResponse = self.switchMethod(baseRequestResponse)
+                print "switched method"
                 if not self.isScannableRequest(baseRequestResponse) or not self.isScript(baseRequestResponse):
                     return None
+            if isProtected(baseRequestResponse):
+                print "is protected"
             newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
             issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
+                print "is issue"
                 # If response is script, check if script is dynamic
                 if self.isScript(newRequestResponse):
                     # sleep, in case this is a generically time stamped script
@@ -120,9 +125,29 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         Turn POST into GET
         """
+        print "Enter switchMethod"
         newRequest = self._helpers.toggleRequestMethod(requestResponse.getRequest())
         newRequestResponse = self._callbacks.makeHttpRequest(requestResponse.getHttpService(), newRequest)
         return newRequestResponse
+
+    def isProtected(self, requestResponse):
+        """
+        Checks for common protection mechanisms
+        """
+        print "Enter isProtected"
+        response = requestResponse.getResponse()
+        responseInfo = self._helpers.analyzeResponse(response)
+        mimeType = responseInfo.getStatedMimeType().split(';')[0]
+        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
+        bodyOffset = responseInfo.getBodyOffset()
+        body = response.tostring()[bodyOffset:]
+        return isThrowProtected(body)
+
+    def isThrowProtected(self, responseBody):
+        """
+        Checks for common DWR XSSI protection method
+        """
+        return responseBody.startswith("throw 'allowScriptTagRemoting is false.';")
 
     def isScannableRequest(self, requestResponse):
         """
@@ -171,6 +196,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
+        print "Enter isScript"
         self._helpers = self._callbacks.getHelpers()
 
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
@@ -182,7 +208,11 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             fileEnding = fileNameSplit[len(fileNameSplit)-1]
             fileEnding = fileEnding.split("?")[0]
 
-        response = requestResponse.getResponse()
+        try:
+            response = requestResponse.getResponse()
+        except:
+            print "failed in isScript"
+            return False
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
@@ -204,37 +234,40 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
     def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
         result = None
+        print "Enter compareResponses"
         nResponse = newRequestResponse.getResponse()
-        nResponseInfo = self._helpers.analyzeResponse(nResponse)
-        if nResponseInfo.getStatusCode() != 304:
-            nBodyOffset = nResponseInfo.getBodyOffset()
-            nBody = nResponse.tostring()[nBodyOffset:]
+        print nResponse
+        if nResponse == None:
+            print "nResponse = None"
+        else:
+            nResponseInfo = self._helpers.analzeResponse(nResponse)
+            print "analyzeResponse worked"
+            if nResponseInfo.getStatusCode() != 304:
+                nBodyOffset = nResponseInfo.getBodyOffset()
+                nBody = nResponse.tostring()[nBodyOffset:]
+                print "Read old response"
+                oResponse = oldRequestResponse.getResponse()
+                if oResponse == None:
+                    print "oResponse None"
+                oResponseInfo = self._helpers.analyzeResponse(oResponse)
 
-            oResponse = oldRequestResponse.getResponse()
-            oResponseInfo = self._helpers.analyzeResponse(oResponse)
-
-            oBodyOffset = oResponseInfo.getBodyOffset()
-            oBody = oResponse.tostring()[oBodyOffset:]
+                oBodyOffset = oResponseInfo.getBodyOffset()
+                oBody = oResponse.tostring()[oBodyOffset:]
 
 
-            if str(nBody) != str(oBody):
-                issuename = "Dynamic JavaScript Code Detected"
-                issuelevel = "Medium"
-                issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
-                issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
-                issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
-                issueconfidence = "Firm"
-                oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
-                nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
-                result = ScanIssue(oldRequestResponse.getHttpService(),
-                                   self._helpers.analyzeRequest(oldRequestResponse).getUrl(),
-                                   issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
-                                   [self._callbacks.applyMarkers(oldRequestResponse, None, oOffsets), self._callbacks.applyMarkers(newRequestResponse, None, nOffsets)])
-            # solely for debugging purposes
-            else:
-                url = self._helpers.analyzeRequest(newRequestResponse).getUrl()
-                url = str(url)
-
+                if str(nBody) != str(oBody):
+                    issuename = "Dynamic JavaScript Code Detected"
+                    issuelevel = "Medium"
+                    issuedetail = "These two files contain differing contents. Check the contents of the files to ensure that they don't contain sensitive information."
+                    issuebackground = "Dynamically generated JavaScript might contain session or user relevant information. Contrary to regular content that is protected by Same-Origin Policy, scripts can be included by third parties. This can lead to leakage of user/session relevant information."
+                    issueremediation = "Applications should not store user/session relevant data in JavaScript files with known URLs. If strict separation of data and code is not possible, CSRF tokens should be used."
+                    issueconfidence = "Firm"
+                    oOffsets = self.calculateHighlights(nBody, oBody, oBodyOffset)
+                    nOffsets = self.calculateHighlights(oBody, nBody, nBodyOffset)
+                    result = ScanIssue(oldRequestResponse.getHttpService(),
+                                       self._helpers.analyzeRequest(oldRequestResponse).getUrl(),
+                                       issuename, issuelevel, issuedetail, issuebackground, issueremediation, issueconfidence,
+                                       [self._callbacks.applyMarkers(oldRequestResponse, None, oOffsets), self._callbacks.applyMarkers(newRequestResponse, None, nOffsets)])
         return result
 
     def reportDynamicOnly(self, firstRequestResponse, originalRequestResponse, secondRequestResponse):
