@@ -75,20 +75,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
         if not self.isScannableRequest(baseRequestResponse):
             return None
-
-        if self.isScript(baseRequestResponse):
+        elif self.isScript(baseRequestResponse):
+            if self.isProtected(baseRequestResponse):
+                return None
             if not self.isGet(baseRequestResponse.getRequest()):
-                print "is post"
                 baseRequestResponse = self.switchMethod(baseRequestResponse)
-                print "switched method"
                 if not self.isScannableRequest(baseRequestResponse) or not self.isScript(baseRequestResponse):
                     return None
-            if isProtected(baseRequestResponse):
-                print "is protected"
             newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
             issue = self.compareResponses(newRequestResponse, baseRequestResponse)
             if issue:
-                print "is issue"
                 # If response is script, check if script is dynamic
                 if self.isScript(newRequestResponse):
                     # sleep, in case this is a generically time stamped script
@@ -125,7 +121,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         Turn POST into GET
         """
-        print "Enter switchMethod"
         newRequest = self._helpers.toggleRequestMethod(requestResponse.getRequest())
         newRequestResponse = self._callbacks.makeHttpRequest(requestResponse.getHttpService(), newRequest)
         return newRequestResponse
@@ -134,14 +129,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         Checks for common protection mechanisms
         """
-        print "Enter isProtected"
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         body = response.tostring()[bodyOffset:]
-        return isThrowProtected(body)
+        return any([self.isThrowProtected(body), self.isCloseParenthesisProtected(body), self.isInfiniteLoopProtected])
 
     def isThrowProtected(self, responseBody):
         """
@@ -154,6 +148,12 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         Checks for common Google Defense
         """
         return responseBody.startswith(")]}'")
+
+    def isInfiniteLoopProtected(self, responseBody):
+        """
+        Checks wether the response is protected by a while(1); statement
+        """
+        return responseBody.startswith("while(1);")
 
     def isScannableRequest(self, requestResponse):
         """
@@ -202,7 +202,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
-        print "Enter isScript"
         self._helpers = self._callbacks.getHelpers()
 
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
@@ -213,11 +212,10 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             fileNameSplit = fileName.split(".")
             fileEnding = fileNameSplit[len(fileNameSplit)-1]
             fileEnding = fileEnding.split("?")[0]
-
         try:
             response = requestResponse.getResponse()
         except:
-            print "failed in isScript"
+            print "Error: Failed in isScript"
             return False
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
@@ -240,27 +238,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
     def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
         result = None
-        print "Enter compareResponses"
         nResponse = newRequestResponse.getResponse()
-        print nResponse
-        if nResponse == None:
-            print "nResponse = None"
-        else:
+        if nResponse != None:
             nResponseInfo = self._helpers.analzeResponse(nResponse)
-            print "analyzeResponse worked"
             if nResponseInfo.getStatusCode() != 304:
                 nBodyOffset = nResponseInfo.getBodyOffset()
                 nBody = nResponse.tostring()[nBodyOffset:]
-                print "Read old response"
                 oResponse = oldRequestResponse.getResponse()
-                if oResponse == None:
-                    print "oResponse None"
                 oResponseInfo = self._helpers.analyzeResponse(oResponse)
-
                 oBodyOffset = oResponseInfo.getBodyOffset()
                 oBody = oResponse.tostring()[oBodyOffset:]
-
-
                 if str(nBody) != str(oBody):
                     issuename = "Dynamic JavaScript Code Detected"
                     issuelevel = "Medium"
