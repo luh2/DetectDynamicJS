@@ -149,6 +149,12 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         return responseBody.startswith("throw 'allowScriptTagRemoting is false.';")
 
+    def isCloseParenthesisProtected(self, responseBody):
+        """
+        Checks for common Google Defense
+        """
+        return responseBody.startswith(")]}'")
+
     def isScannableRequest(self, requestResponse):
         """
         Checks whether the given request is actually of interest to this scanner
