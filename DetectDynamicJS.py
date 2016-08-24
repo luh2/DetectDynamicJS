@@ -48,7 +48,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._helpers = callbacks.getHelpers()
         # Define some constants
         self.validStatusCodes = [200]
-        self.ifields = ['cookie'] #, 'authorization'
+        self.ifields = ['cookie', 'authorization'] 
         self.possibleFileEndings = ["js", "jsp", "json"]
         self.possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self.ichars = ['{', '<']
