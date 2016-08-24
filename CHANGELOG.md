@@ -1,5 +1,11 @@
 # Changelog
 
+<a name="0.8"></a>
+## v0.8 (Honey Bunny)
+	- add xssi protection detection
+	- fix POST/GET
+	- further code clean up
+
 <a name="0.7"></a>
 ## v0.7 (Captain Koons)
 	- fix race condition

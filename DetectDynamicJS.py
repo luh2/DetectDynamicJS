@@ -30,8 +30,8 @@ try:
 except ImportError:
     print "Failed to load dependencies. This issue maybe caused by using an unstable Jython version."
 
-VERSION = '0.7'
-VERSIONNAME = 'Captain Koons'
+VERSION = '0.8'
+VERSIONNAME = 'Honey Bunny'
 
 
 class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpRequestResponse):
@@ -48,7 +48,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         self._helpers = callbacks.getHelpers()
         # Define some constants
         self.validStatusCodes = [200]
-        self.ifields = ['cookie', 'authorization']
+        self.ifields = ['cookie'] #, 'authorization'
         self.possibleFileEndings = ["js", "jsp", "json"]
         self.possibleContentTypes = ["javascript", "ecmascript", "jscript", "json"]
         self.ichars = ['{', '<']
@@ -215,7 +215,6 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         try:
             response = requestResponse.getResponse()
         except:
-            print "Error: Failed in isScript"
             return False
         responseInfo = self._helpers.analyzeResponse(response)
         mimeType = responseInfo.getStatedMimeType().split(';')[0]
