@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Burp DetectDynamicJS Extension
-# Copyright (c) 2015, 2016 Veit Hailperin (scip AG)
+# Copyright (c) 2015, 2016 Veit Hailperin (scip AG), 2017 Veit Hailperin
 
 # This extension is supposed to help detecting dynamic js files, to look
 # for state-dependency.
