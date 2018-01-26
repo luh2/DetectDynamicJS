@@ -23,5 +23,9 @@ If you test under Windows or use a different Burp version, please share if you e
 
 If you identify XSSI because of this extension, feel free to share!
 
+## Thanks to
+
+1lastBr3ath and wh1tenoise for their contributing bug fixes and features.
+
 ## License
 This software is released under [GPL v3](https://www.gnu.org/licenses/gpl-3.0.en.html).
