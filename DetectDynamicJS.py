@@ -112,11 +112,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         requestResponse: The request to send again
         returns a requestResponse
         """
-        request = requestResponse.getRequest()
-        requestInfo = self._helpers.analyzeRequest(request)
-        modified_headers = self.stripAuthenticationCharacteristics(
-            requestResponse)
-        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers))
+        newRequest = self.stripAuthenticationCharacteristics(requestResponse)
+        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), newRequest)
 
     def isGet(self, request):
         """
@@ -197,10 +194,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         Strip possible ambient authority information.
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
-        stripped_headers = "\n".join(header for header in reqHeaders if header.split(':')[
-                                     0].lower() not in self.ifields)
-        stripped_headers += "\r\n"
-        return stripped_headers
+
+        newHeaders = []
+        for header in reqHeaders:
+            headerName = header.split(':')[0].lower()
+            if headerName not in self.ifields:
+                newHeaders.append(header)
+        
+        return self._helpers.buildHttpMessage(newHeaders,None)
+
 
     def hasBody(self, headers):
         """
