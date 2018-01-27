@@ -203,15 +203,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         
         return self._helpers.buildHttpMessage(newHeaders,None)
 
-
-    def hasBody(self, headers):
+    def hasBody(self, response):
         """
-        Checks whether the response has a positive content-length
+        Checks whether the response has a positive content-length (irrespective of the stated content-length!)
         """
-        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
-        if contentLengthL:
-            return int(contentLengthL[0].split(':')[1].strip()) > 0
-        return False
+        responseInfo = self._helpers.analyzeResponse(response)
+        body = response[responseInfo.getBodyOffset():]
+        return len(body) > 0
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
@@ -237,7 +235,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
 
-        if self.hasBody(responseInfo.getHeaders()):
+        if self.hasBody(response):
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
