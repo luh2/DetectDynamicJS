@@ -114,7 +114,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         request = requestResponse.getRequest()
         requestInfo = self._helpers.analyzeRequest(request)
-        modified_headers = self.stripAuthorizationCharacteristics(
+        modified_headers = self.stripAuthenticationCharacteristics(
             requestResponse)
         return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers))
 
@@ -174,7 +174,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         return all([self.hasValidStatusCode(responseInfo.getStatusCode()),
-                    self.hasAuthorizationCharacteristic(requestResponse),
+                    self.hasAuthenticationCharacteristic(requestResponse),
                     self.hasBody(responseInfo.getHeaders())])
 
     def hasValidStatusCode(self, statusCode):
@@ -183,16 +183,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         return statusCode in self.validStatusCodes
 
-    def hasAuthorizationCharacteristic(self, requestResponse):
+    def hasAuthenticationCharacteristic(self, requestResponse):
         """
-        Detects whether the request contains some kind of authorization
+        Detects whether the request contains some kind of authentication
         information.
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         return any(h for h in self.ifields if h not in str(hfields).lower())
 
-    def stripAuthorizationCharacteristics(self, requestResponse):
+    def stripAuthenticationCharacteristics(self, requestResponse):
         """
         Strip possible ambient authority information.
         """
