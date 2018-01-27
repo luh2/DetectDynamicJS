@@ -250,8 +250,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         result = None
         nResponse = newRequestResponse.getResponse()
         if nResponse is not None:
-            nResponseInfo = self._helpers.analzeResponse(nResponse)
-            if nResponseInfo.getStatusCode() != 304:
+            nResponseInfo = self._helpers.analyzeResponse(nResponse)
+            if nResponseInfo.getStatusCode() != 304: # We are only considering non-cached HTTP responses
                 nBodyOffset = nResponseInfo.getBodyOffset()
                 nBody = nResponse.tostring()[nBodyOffset:]
                 oResponse = oldRequestResponse.getResponse()
