@@ -145,7 +145,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         body = response.tostring()[bodyOffset:]
-        return any([self.isThrowProtected(body), self.isCloseParenthesisProtected(body), self.isInfiniteLoopProtected])
+        return any([self.isThrowProtected(body), self.isCloseParenthesisProtected(body), self.isInfiniteLoopProtected(body)])
 
     def isThrowProtected(self, responseBody):
         """
