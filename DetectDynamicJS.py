@@ -112,11 +112,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         requestResponse: The request to send again
         returns a requestResponse
         """
-        request = requestResponse.getRequest()
-        requestInfo = self._helpers.analyzeRequest(request)
-        modified_headers = self.stripAuthorizationCharacteristics(
-            requestResponse)
-        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), self._helpers.stringToBytes(modified_headers))
+        newRequest = self.stripAuthenticationCharacteristics(requestResponse)
+        return self._callbacks.makeHttpRequest(requestResponse.getHttpService(), newRequest)
 
     def isGet(self, request):
         """
@@ -145,7 +142,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
         body = response.tostring()[bodyOffset:]
-        return any([self.isThrowProtected(body), self.isCloseParenthesisProtected(body), self.isInfiniteLoopProtected])
+        return any([self.isThrowProtected(body), self.isCloseParenthesisProtected(body), self.isInfiniteLoopProtected(body)])
 
     def isThrowProtected(self, responseBody):
         """
@@ -173,9 +170,9 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
-        return all([self.hasValidStatusCode(responseInfo.getStatusCode()),
-                    self.hasAuthorizationCharacteristic(requestResponse),
-                    self.hasBody(responseInfo.getHeaders())])
+        return (self.hasValidStatusCode(responseInfo.getStatusCode()) and 
+                    self.hasAuthenticationCharacteristic(requestResponse) and
+                    self.hasBody(response))
 
     def hasValidStatusCode(self, statusCode):
         """
@@ -183,33 +180,36 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         return statusCode in self.validStatusCodes
 
-    def hasAuthorizationCharacteristic(self, requestResponse):
+    def hasAuthenticationCharacteristic(self, requestResponse):
         """
-        Detects whether the request contains some kind of authorization
+        Detects whether the request contains some kind of authentication
         information.
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
         hfields = [h.split(':')[0] for h in reqHeaders]
         return any(h for h in self.ifields if h not in str(hfields).lower())
 
-    def stripAuthorizationCharacteristics(self, requestResponse):
+    def stripAuthenticationCharacteristics(self, requestResponse):
         """
         Strip possible ambient authority information.
         """
         reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
-        stripped_headers = "\n".join(header for header in reqHeaders if header.split(':')[
-                                     0].lower() not in self.ifields)
-        stripped_headers += "\r\n"
-        return stripped_headers
 
-    def hasBody(self, headers):
+        newHeaders = []
+        for header in reqHeaders:
+            headerName = header.split(':')[0].lower()
+            if headerName not in self.ifields:
+                newHeaders.append(header)
+        
+        return self._helpers.buildHttpMessage(newHeaders,None)
+
+    def hasBody(self, response):
         """
-        Checks whether the response has a positive content-length
+        Checks whether the response has a positive content-length (irrespective of the stated content-length!)
         """
-        contentLengthL = [x for x in headers if "content-length:" in x.lower()]
-        if contentLengthL:
-            return int(contentLengthL[0].split(':')[1].strip()) > 0
-        return False
+        responseInfo = self._helpers.analyzeResponse(response)
+        body = response[responseInfo.getBodyOffset():]
+        return len(body) > 0
 
     def isScript(self, requestResponse):
         """Determine if the response is a script"""
@@ -235,7 +235,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
 
-        if self.hasBody(responseInfo.getHeaders()):
+        if self.hasBody(response):
             contentType = ""
             contentTypeL = [x for x in headers if "content-type:" in x.lower()]
             if len(contentTypeL) == 1:
@@ -250,8 +250,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         result = None
         nResponse = newRequestResponse.getResponse()
         if nResponse is not None:
-            nResponseInfo = self._helpers.analzeResponse(nResponse)
-            if nResponseInfo.getStatusCode() != 304:
+            nResponseInfo = self._helpers.analyzeResponse(nResponse)
+            if nResponseInfo.getStatusCode() != 304: # We are only considering non-cached HTTP responses
                 nBodyOffset = nResponseInfo.getBodyOffset()
                 nBody = nResponse.tostring()[nBodyOffset:]
                 oResponse = oldRequestResponse.getResponse()
