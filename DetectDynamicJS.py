@@ -83,15 +83,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             return None
         newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
         issue = self.compareResponses(newRequestResponse, baseRequestResponse)
-        # If response is script, check if script is dynamic
-        if not issue or not self.isScript(newRequestResponse):
+        if not issue:
             return None
-        # sleep, in case this is a generically time stamped script
-        sleep(1)
-        secondRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
-        isDynamic = self.compareResponses(secondRequestResponse, newRequestResponse)
-        if isDynamic:
-            issue = self.reportDynamicOnly(newRequestResponse, baseRequestResponse, secondRequestResponse)
+        # If response is script, check if script is dynamic
+        if self.isScript(newRequestResponse):
+            # sleep, in case this is a generically time stamped script
+            sleep(1)
+            secondRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
+            isDynamic = self.compareResponses(secondRequestResponse, newRequestResponse)
+            if isDynamic:
+                issue = self.reportDynamicOnly(newRequestResponse, baseRequestResponse, secondRequestResponse)
         scan_issues.append(issue)
         return scan_issues
 
@@ -160,8 +161,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         return (self.hasValidStatusCode(responseInfo.getStatusCode()) and 
-                self.hasAuthenticationCharacteristic(requestResponse) and
-                self.hasBody(response))
+                self.hasAuthenticationCharacteristic(requestResponse))
 
     def hasValidStatusCode(self, statusCode):
         """
@@ -200,10 +200,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         body = response[responseInfo.getBodyOffset():]
         return len(body) > 0
 
-    def isScript(self, requestResponse):
-        """Determine if the response is a script"""
+    def hasScriptFileEnding(self, requestResponse):
         self._helpers = self._callbacks.getHelpers()
-
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
         fileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
@@ -212,27 +210,38 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             fileNameSplit = fileName.split(".")
             fileEnding = fileNameSplit[len(fileNameSplit) - 1]
             fileEnding = fileEnding.split("?")[0]
+        return any(fileEnd in fileEnding for fileEnd in self.possibleFileEndings)
+
+    def hasScriptContentType(self, response):
+        responseInfo = self._helpers.analyzeResponse(response)
+        headers = responseInfo.getHeaders()
+        contentType = ""
+        contentTypeL = [x for x in headers if "content-type:" in x.lower()]
+        if len(contentTypeL) == 1:
+            contentType = contentTypeL[0].lower()
+        return any(content in contentType for content in self.possibleContentTypes)
+
+    def isScript(self, requestResponse):
+        """Determine if the response is a script"""
+        self._helpers = self._callbacks.getHelpers()
         try:
             response = requestResponse.getResponse()
         except:
             return False
+        if not self.hasBody(response):
+            return False
         responseInfo = self._helpers.analyzeResponse(response)
-        mimeType = responseInfo.getStatedMimeType().split(';')[0]
-        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
         bodyOffset = responseInfo.getBodyOffset()
-        headers = response.tostring()[:bodyOffset].split('\r\n')
         body = response.tostring()[bodyOffset:]
         first_char = body[0:1]
-
-        if self.hasBody(response):
-            contentType = ""
-            contentTypeL = [x for x in headers if "content-type:" in x.lower()]
-            if len(contentTypeL) == 1:
-                contentType = contentTypeL[0].lower()
-            return (any(content in contentType for content in self.possibleContentTypes) or
-                    any(fileEnd in fileEnding for fileEnd in self.possibleFileEndings) or
-                    "script" in inferredMimeType or "script" in mimeType) and first_char not in self.ichars
-        return False
+        mimeType = responseInfo.getStatedMimeType().split(';')[0]
+        inferredMimeType = responseInfo.getInferredMimeType().split(';')[0]
+        return (first_char not in self.ichars and 
+                ("script" in mimeType or
+                 "script" in inferredMimeType or
+                 self.hasScriptFileEnding(requestResponse) or
+                 self.hasScriptContentType(response)))
+        
 
     def compareResponses(self, newRequestResponse, oldRequestResponse):
         """Compare two responses in respect to their body contents"""
