@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Burp DetectDynamicJS Extension
-# Copyright (c) 2015, 2016 Veit Hailperin (scip AG), 2017 Veit Hailperin
+# Copyright (c) 2015, 2016 Veit Hailperin (scip AG), 2017, 2018 Veit Hailperin
 
 # This extension is supposed to help detecting dynamic js files, to look
 # for state-dependency.
@@ -75,36 +75,25 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         scan_issues = []
         self._helpers = self._callbacks.getHelpers()
 
-        if not self.isScannableRequest(baseRequestResponse):
+        if not self.isGet(baseRequestResponse.getRequest()):
+            baseRequestResponse = self.switchMethod(baseRequestResponse)
+        if (not self.isScannableRequest(baseRequestResponse) or
+            not self.isScript(baseRequestResponse) or
+            self.isProtected(baseRequestResponse)):
             return None
-        elif self.isScript(baseRequestResponse):
-            if self.isProtected(baseRequestResponse):
-                return None
-            if not self.isGet(baseRequestResponse.getRequest()):
-                baseRequestResponse = self.switchMethod(baseRequestResponse)
-                if not self.isScannableRequest(baseRequestResponse) or not self.isScript(baseRequestResponse):
-                    return None
-            newRequestResponse = self.sendUnauthenticatedRequest(
-                baseRequestResponse)
-            issue = self.compareResponses(
-                newRequestResponse, baseRequestResponse)
-            if issue:
-                # If response is script, check if script is dynamic
-                if self.isScript(newRequestResponse):
-                    # sleep, in case this is a generically time stamped script
-                    sleep(1)
-                    secondRequestResponse = self.sendUnauthenticatedRequest(
-                        baseRequestResponse)
-                    isDynamic = self.compareResponses(
-                        secondRequestResponse, newRequestResponse)
-                    if isDynamic:
-                        issue = self.reportDynamicOnly(
-                            newRequestResponse, baseRequestResponse, secondRequestResponse)
-                scan_issues.append(issue)
-        if len(scan_issues) > 0:
-            return scan_issues
-        else:
+        newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
+        issue = self.compareResponses(newRequestResponse, baseRequestResponse)
+        # If response is script, check if script is dynamic
+        if not issue or not self.isScript(newRequestResponse):
             return None
+        # sleep, in case this is a generically time stamped script
+        sleep(1)
+        secondRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
+        isDynamic = self.compareResponses(secondRequestResponse, newRequestResponse)
+        if isDynamic:
+            issue = self.reportDynamicOnly(newRequestResponse, baseRequestResponse, secondRequestResponse)
+        scan_issues.append(issue)
+        return scan_issues
 
     def sendUnauthenticatedRequest(self, requestResponse):
         """
@@ -171,8 +160,8 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
         return (self.hasValidStatusCode(responseInfo.getStatusCode()) and 
-                    self.hasAuthenticationCharacteristic(requestResponse) and
-                    self.hasBody(response))
+                self.hasAuthenticationCharacteristic(requestResponse) and
+                self.hasBody(response))
 
     def hasValidStatusCode(self, statusCode):
         """
