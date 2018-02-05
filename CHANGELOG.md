@@ -1,5 +1,10 @@
 # Changelog
 
+<a name="0.9"></a>
+## v0.9 (Buddy Holly)
+	- fix bugs
+	- improve speed
+	
 <a name="0.8"></a>
 ## v0.8 (Honey Bunny)
 	- add xssi protection detection
