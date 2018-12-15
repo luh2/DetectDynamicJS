@@ -76,6 +76,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
             baseRequestResponse = self.switchMethod(baseRequestResponse)
         if (not self.isScannableRequest(baseRequestResponse) or
             not self.isScript(baseRequestResponse) or
+            not self.containsAuthenticationCharacteristics(baseRequestResponse) or
             self.isProtected(baseRequestResponse)):
             return None
         newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
@@ -93,6 +94,19 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                                                secondRequestResponse)
         scan_issues.append(issue)
         return scan_issues
+
+    def containsAuthenticationCharacteristics(self, requestResponse):
+        """
+        Check whether the request contains ambient authority information
+        returns a boolean
+        """
+        reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
+        newHeaders = []
+        for header in reqHeaders:
+            headerName = header.split(':')[0].lower()
+            if headerName in self.ifields:
+                return True
+        return False
 
     def sendUnauthenticatedRequest(self, requestResponse):
         """
