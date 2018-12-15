@@ -72,13 +72,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # for this test.
         scan_issues = []
 
-        if not self.isGet(baseRequestResponse.getRequest()):
-            baseRequestResponse = self.switchMethod(baseRequestResponse)
         if (not self.isScannableRequest(baseRequestResponse) or
             not self.isScript(baseRequestResponse) or
             not self.containsAuthenticationCharacteristics(baseRequestResponse) or
             self.isProtected(baseRequestResponse)):
             return None
+
+        if not self.isGet(baseRequestResponse.getRequest()):
+            baseRequestResponse = self.switchMethod(baseRequestResponse)
+
         newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
         issue = self.compareResponses(newRequestResponse, baseRequestResponse)
         if not issue:
