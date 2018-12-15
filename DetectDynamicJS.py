@@ -48,7 +48,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # Define some constants
         self.validStatusCodes = [200]
         self.ifields = ['cookie', 'authorization']
-        self.possibleFileEndings = ["js", "jsp", "json"]
+        self.possibleFileEndings = ["js", "json"]
         self.possibleContentTypes = [
             "javascript", "ecmascript", "jscript", "json"]
         self.ichars = ['{', '<']
@@ -199,14 +199,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         Checks for common script file endings
         """
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
-        fileEnding = ".totallynotit"
+        extractedFileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
         if len(urlSplit) != 0:
             fileName = urlSplit[len(urlSplit) - 1]
             fileNameSplit = fileName.split(".")
-            fileEnding = fileNameSplit[len(fileNameSplit) - 1]
-            fileEnding = fileEnding.split("?")[0]
-        return any(fileEnd in fileEnding for fileEnd in self.possibleFileEndings)
+            extractedFileEnding = fileNameSplit.pop() # pop() returns last item of list when called without index
+            extractedFileEnding = extractedFileEnding.lower() # account for upper case letters
+            extractedFileEnding = extractedFileEnding.split("?")[0]
+        return extractedFileEnding in self.possibleFileEndings # will not detect, e.g., 'jspa' as script file ending
+
 
     def hasScriptContentType(self, response):
         """ Checks for common content types, that could be scripts """
