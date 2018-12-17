@@ -48,7 +48,7 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # Define some constants
         self.validStatusCodes = [200]
         self.ifields = ['cookie', 'authorization']
-        self.possibleFileEndings = ["js", "jsp", "json"]
+        self.possibleFileEndings = ["js", "json"]
         self.possibleContentTypes = [
             "javascript", "ecmascript", "jscript", "json"]
         self.ichars = ['{', '<']
@@ -72,12 +72,15 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         # for this test.
         scan_issues = []
 
-        if not self.isGet(baseRequestResponse.getRequest()):
-            baseRequestResponse = self.switchMethod(baseRequestResponse)
         if (not self.isScannableRequest(baseRequestResponse) or
             not self.isScript(baseRequestResponse) or
+            not self.containsAuthenticationCharacteristics(baseRequestResponse) or
             self.isProtected(baseRequestResponse)):
             return None
+
+        if not self.isGet(baseRequestResponse.getRequest()):
+            baseRequestResponse = self.switchMethod(baseRequestResponse)
+
         newRequestResponse = self.sendUnauthenticatedRequest(baseRequestResponse)
         issue = self.compareResponses(newRequestResponse, baseRequestResponse)
         if not issue:
@@ -93,6 +96,19 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
                                                secondRequestResponse)
         scan_issues.append(issue)
         return scan_issues
+
+    def containsAuthenticationCharacteristics(self, requestResponse):
+        """
+        Check whether the request contains ambient authority information
+        returns a boolean
+        """
+        reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
+        newHeaders = []
+        for header in reqHeaders:
+            headerName = header.split(':')[0].lower()
+            if headerName in self.ifields:
+                return True
+        return False
 
     def sendUnauthenticatedRequest(self, requestResponse):
         """
@@ -156,23 +172,13 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         """
         response = requestResponse.getResponse()
         responseInfo = self._helpers.analyzeResponse(response)
-        return (self.hasValidStatusCode(responseInfo.getStatusCode()) and
-                self.hasAuthenticationCharacteristic(requestResponse))
+        return self.hasValidStatusCode(responseInfo.getStatusCode())
 
     def hasValidStatusCode(self, statusCode):
         """
         Checks the status code of the request
         """
         return statusCode in self.validStatusCodes
-
-    def hasAuthenticationCharacteristic(self, requestResponse):
-        """
-        Detects whether the request contains some kind of authentication
-        information.
-        """
-        reqHeaders = self._helpers.analyzeRequest(requestResponse).getHeaders()
-        hfields = [h.split(':')[0] for h in reqHeaders]
-        return any(h for h in self.ifields if h not in str(hfields).lower())
 
     def stripAuthenticationCharacteristics(self, requestResponse):
         """
@@ -199,14 +205,16 @@ class BurpExtender(IBurpExtender, IScannerCheck, IExtensionStateListener, IHttpR
         Checks for common script file endings
         """
         url = self._helpers.analyzeRequest(requestResponse).getUrl()
-        fileEnding = ".totallynotit"
+        extractedFileEnding = ".totallynotit"
         urlSplit = str(url).split("/")
         if len(urlSplit) != 0:
             fileName = urlSplit[len(urlSplit) - 1]
             fileNameSplit = fileName.split(".")
-            fileEnding = fileNameSplit[len(fileNameSplit) - 1]
-            fileEnding = fileEnding.split("?")[0]
-        return any(fileEnd in fileEnding for fileEnd in self.possibleFileEndings)
+            extractedFileEnding = fileNameSplit.pop() # pop() returns last item of list when called without index
+            extractedFileEnding = extractedFileEnding.lower() # account for upper case letters
+            extractedFileEnding = extractedFileEnding.split("?")[0]
+        return extractedFileEnding in self.possibleFileEndings # will not detect, e.g., 'jspa' as script file ending
+
 
     def hasScriptContentType(self, response):
         """ Checks for common content types, that could be scripts """
