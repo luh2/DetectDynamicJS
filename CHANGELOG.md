@@ -1,5 +1,10 @@
 # Changelog
 
+<a name="0.10"></a>
+## v0.10 (Lance)
+	- fix bug in hasAuthenticationCharacteristic
+	- reduce amount of requests
+
 <a name="0.9"></a>
 ## v0.9 (Buddy Holly)
 	- fix bugs
